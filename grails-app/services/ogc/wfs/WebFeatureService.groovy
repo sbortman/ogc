@@ -13,7 +13,7 @@ class WebFeatureService
 
   def grailsLinkGenerator
 
-  def typeMappings = [
+  static final Map<String, String> typeMappings = [
       'Double': 'xsd:double',
       'Integer': 'xsd:int',
       'Long': 'xsd:long',
@@ -27,7 +27,7 @@ class WebFeatureService
   ]
 
 
-  def ogcNamespacesByPrefix = [
+  static final Map<String, String> ogcNamespacesByPrefix = [
       // These are OGC/XML specs
       xsi: "http://www.w3.org/2001/XMLSchema-instance",
       wfs: "http://www.opengis.net/wfs",
@@ -37,7 +37,7 @@ class WebFeatureService
       xlink: "http://www.w3.org/1999/xlink",
   ]
 
-  def outputFormats = [
+  static final List<String> outputFormats = [
       'text/xml; subtype=gml/3.1.1',
       'GML2',
       'KML',
@@ -54,14 +54,14 @@ class WebFeatureService
       'text/xml; subtype=gml/3.2'
   ]
 
-  def geometryOperands = [
+  static final List<String> geometryOperands = [
       'gml:Envelope',
       'gml:Point',
       'gml:LineString',
       'gml:Polygon'
   ]
 
-  def spatialOperators = [
+  static final List<String> spatialOperators = [
       "Disjoint",
       "Equals",
       "DWithin",
@@ -75,7 +75,7 @@ class WebFeatureService
       "BBOX"
   ]
 
-  def comparisonOperators = [
+  static final List<String> comparisonOperators = [
       'LessThan',
       'GreaterThan',
       'LessThanEqualTo',
@@ -86,161 +86,6 @@ class WebFeatureService
       'Between',
       'NullCheck'
   ]
-
-  def geoserverHome = '/Applications/GeoServer.app/Contents/Java'
-
-  def featureTypeNamespaces = [
-      // These are feature types
-      [prefix: 'it.geosolutions', uri: "http://www.geo-solutions.it"],
-      [prefix: 'cite', uri: "http://www.opengeospatial.net/cite"],
-      [prefix: 'omar', uri: "http://omar.ossim.org"],
-      [prefix: 'tiger', uri: "http://www.census.gov"],
-      [prefix: 'sde', uri: "http://geoserver.sf.net"],
-      [prefix: 'topp', uri: "http://www.openplans.org/topp"],
-      [prefix: 'sf', uri: "http://www.openplans.org/spearfish"],
-      [prefix: 'nurc', uri: "http://www.nurc.nato.int"]
-  ]
-
-  def datastores = [[
-      namespaceId: 'tiger',
-      datastoreId: 'tiger',
-      datastoreParams: [
-          url: "file://${geoserverHome}/data_dir/data/nyc".toURL(),
-          namespace: featureTypeNamespaces.find { it.prefix == 'tiger' }.uri
-      ]
-  ], [
-      namespaceId: 'sf',
-      datastoreId: 'sf',
-      datastoreParams: [
-          url: "file://${geoserverHome}/data_dir/data/sf".toURL(),
-          namespace: featureTypeNamespaces.find { it.prefix == 'sf' }.uri
-      ]
-  ], [
-      namespaceId: 'topp',
-      datastoreId: 'states_shapefile',
-      datastoreParams: [
-          url: "file://${geoserverHome}/data_dir/data/shapefiles".toURL(),
-          namespace: featureTypeNamespaces.find { it.prefix == 'topp' }.uri
-      ]
-  ], [
-      namespaceId: 'topp',
-      datastoreId: 'taz_shapes',
-      datastoreParams: [
-          url: "file://${geoserverHome}/data_dir/data/taz_shapes".toURL(),
-          namespace: featureTypeNamespaces.find { it.prefix == 'topp' }.uri
-      ]
-  ], [
-      namespaceId: 'omar',
-      datastoreId: 'omar-1.8.19-prod',
-      datastoreParams: [
-          dbtype: 'postgis',
-          host: 'localhost',
-          port: 5432,
-          database: 'omardb-1.8.19-prod',
-          user: 'postgres',
-          passwd: 'postgres',
-          'Expose primary keys': true,
-          namespace: featureTypeNamespaces.find { it.prefix == 'omar' }.uri
-      ]
-  ]]
-
-  def featureTypes = [[
-      name: 'poly_landmarks',
-      title: 'Manhattan (NY) landmarks',
-      description: 'Manhattan landmarks, identifies water, lakes, parks, interesting buildings',
-      keywords: ['landmarks', 'DS_poly_landmarks', 'manhattan', 'poly_landmarks'],
-      datastoreId: 'tiger'
-  ], [
-      name: 'poi',
-      title: 'Manhattan (NY) points of interest',
-      description: 'Points of interest in New York, New York (on Manhattan). One of the attributes contains the name of a file with a picture of the point of interest.',
-      keywords: ['poi', 'Manhattan', 'DS_poi', 'points_of_interest'],
-      datastoreId: 'tiger'
-  ], [
-      name: 'tiger_roads',
-      title: 'Manhattan (NY) roads',
-      description: 'Highly simplified road layout of Manhattan in New York..',
-      keywords: ['DS_tiger_roads', 'tiger_roads', 'roads'],
-      datastoreId: 'tiger'
-  ], [
-      name: 'archsites',
-      title: 'Spearfish archeological sites',
-      description: 'Sample data from GRASS, archeological sites location, Spearfish, South Dakota, USA',
-      keywords: ['archsites', 'spearfish', 'sfArchsites', 'archeology'],
-      datastoreId: 'sf'
-  ], [
-      name: 'bugsites',
-      title: 'Spearfish bug locations',
-      description: 'Sample data from GRASS, bug sites location, Spearfish, South Dakota, USA',
-      keywords: ['spearfish', 'sfBugsites', 'insects', 'bugsites', 'tiger_beetles'],
-      datastoreId: 'sf'
-  ], [
-      name: 'restricted',
-      title: 'Spearfish restricted areas',
-      description: 'Sample data from GRASS, restricted areas, Spearfish, South Dakota, USA',
-      keywords: ['spearfish', 'restricted', 'areas', 'sfRestricted'],
-      datastoreId: 'sf'
-  ], [
-      name: 'roads',
-      title: 'Spearfish roads',
-      description: 'Sample data from GRASS, road layout, Spearfish, South Dakota, USA',
-      keywords: ['sfRoads', 'spearfish', 'roads'],
-      datastoreId: 'sf'
-  ], [
-      name: 'streams',
-      title: 'Spearfish streams',
-      description: 'Sample data from GRASS, streams, Spearfish, South Dakota, USA',
-      keywords: ['spearfish', 'sfStreams', 'streams'],
-      datastoreId: 'sf'
-  ], [
-      name: 'tasmania_cities',
-      title: 'Tasmania cities',
-      description: 'Cities in Tasmania (actually, just the capital)',
-      keywords: ['cities', 'Tasmania'],
-      datastoreId: 'taz_shapes'
-  ], [
-      name: 'tasmania_roads',
-      title: 'Tasmania roads',
-      description: 'Main Tasmania roads',
-      keywords: ['Roads', 'Tasmania'],
-      datastoreId: 'taz_shapes'
-  ], [
-      name: 'tasmania_state_boundaries',
-      title: 'Tasmania state boundaries',
-      description: 'Tasmania state boundaries',
-      keywords: ['boundaries', 'tasmania_state_boundaries', 'Tasmania'],
-      datastoreId: 'taz_shapes'
-  ], [
-      name: 'tasmania_water_bodies',
-      title: 'Tasmania water bodies',
-      description: 'Tasmania water bodies',
-      keywords: ['Lakes', 'Bodies', 'Australia', 'Water', 'Tasmania'],
-      datastoreId: 'taz_shapes'
-  ], [
-      name: 'states',
-      title: 'USA Population',
-      description: 'This is some census data on the states.',
-      keywords: ['census', 'united', 'boundaries', 'state', 'states'],
-      datastoreId: 'states_shapefile'
-  ], [
-      name: 'giant_polygon',
-      title: 'World rectangle',
-      description: 'A simple rectangular polygon covering most of the world, it\'s only used for the purpose of providing a background (WMS bgcolor could be used instead)',
-      keywords: ['DS_giant_polygon', 'giant_polygon'],
-      datastoreId: 'tiger'
-  ], [
-      name: 'raster_entry',
-      title: 'raster_entry',
-      description: '',
-      keywords: ['raster_entry', 'features'],
-      datastoreId: 'omar-1.8.19-prod'
-  ], [
-      name: 'video_data_set',
-      title: 'video_data_set',
-      description: '',
-      keywords: ['video_data_set', 'features'],
-      datastoreId: 'omar-1.8.19-prod'
-  ]]
 
   private static def listFunctions2()
   {
@@ -260,7 +105,7 @@ class WebFeatureService
   {
     def wfsServiceAddress = grailsLinkGenerator.link( absolute: true, uri: '/wfs' )
     def wfsSchemaLocation = grailsLinkGenerator.link( absolute: true, uri: '/schemas/wfs/1.1.0/wfs.xsd' )
-    def featureTypeNamespacesByPrefix = featureTypeNamespaces.inject( [:] ) { a, b -> a[b.prefix] = b.uri; a }
+    def featureTypeNamespacesByPrefix = NamespaceInfo.list().inject( [:] ) { a, b -> a[b.prefix] = b.uri; a }
     def functionNames = listFunctions2()
 
     def x = {
@@ -418,21 +263,20 @@ class WebFeatureService
             // Operation( 'Delete' )
             // Operation( 'Lock' )
           }
-          featureTypes.each { featureType ->
-            def datastore = datastores.find { it.datastoreId == featureType.datastoreId }
-            //def ns = featureTypeNamespaces.find { it.prefix == ds.namespaceId }
+          LayerInfo.list().each { layerInfo ->
+            WorkspaceInfo workspaceInfo = WorkspaceInfo.findByName( layerInfo.workspaceInfo.name )
 
-            Workspace.withWorkspace( datastore?.datastoreParams ) { Workspace workspace ->
-              def layer = workspace[featureType.name]
+            Workspace.withWorkspace( workspaceInfo?.workspaceParams ) { Workspace workspace ->
+              def layer = workspace[layerInfo.name]
               def uri = layer?.schema?.uri
-              def prefix = featureTypeNamespaces.find { it.uri == uri }?.prefix
+              def prefix = NamespaceInfo.findByUri( uri )?.prefix
               def geoBounds = ( layer?.proj?.epsg == 4326 ) ? layer?.bounds : layer?.bounds?.reproject( 'epsg:4326' )
               FeatureType( "xmlns:${prefix}": uri ) {
-                Name( "${prefix}:${featureType.name}" )
-                Title( featureType.title )
-                Abstract( featureType.description )
+                Name( "${prefix}:${layerInfo.name}" )
+                Title( layerInfo.title )
+                Abstract( layerInfo.description )
                 ows.Keywords {
-                  featureType.keywords?.each { keyword ->
+                  layerInfo.keywords?.each { keyword ->
                     ows.Keyword( keyword )
                   }
                 }
@@ -527,24 +371,24 @@ class WebFeatureService
 
   def describeFeatureType(DescribeFeatureTypeRequest wfsParams)
   {
-    def (namespaceId, typeName) = wfsParams?.typeName?.split( ':' )
+    def (namespacePrefix, layerName) = wfsParams?.typeName?.split( ':' )
 
-    println "${namespaceId} ${typeName}"
+    println "${namespacePrefix} ${layerName}"
 
-    def datastoreIds = featureTypes.findAll { it.name == typeName }?.datastoreId
-    def datastore = datastores.find { it.datastoreId in datastoreIds && it.namespaceId == namespaceId }
-
-    println datastore
+    LayerInfo layerInfo = LayerInfo.where {
+      name == layerName && workspaceInfo.namespaceInfo.prefix == namespacePrefix
+    }.list().first()
 
     String schemaLocation = grailsLinkGenerator.link( absolute: true, uri: '/' )
     def xml = null
 
-    Workspace.withWorkspace( datastore?.datastoreParams ) { Workspace workspace ->
-      Schema schema = workspace[typeName].schema
-      String prefix = featureTypeNamespaces.find { it.uri == schema.uri }.prefix
+    Workspace.withWorkspace( layerInfo.workspaceInfo?.workspaceParams ) { Workspace workspace ->
+      Schema schema = workspace[layerName].schema
+      String prefix = NamespaceInfo.findByUri( schema.uri ).prefix
 
       xml = generateSchema( schema, prefix, schemaLocation )
     }
+
     [contentType: 'text/xml', buffer: xml]
   }
 
