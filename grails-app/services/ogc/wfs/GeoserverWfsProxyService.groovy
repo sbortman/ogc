@@ -1,5 +1,8 @@
 package ogc.wfs
 
+import ogc.BindUtil
+
+
 class GeoserverWfsProxyService
 {
   static transactional = false
@@ -17,7 +20,9 @@ class GeoserverWfsProxyService
     if ( !cacheFile.exists() )
     {
       def url = grailsLinkGenerator.link( base: geoserverBase, absolute: true, uri: '/wfs',
-          params: wfsParams.toParamMap() ).toURL()
+          params: BindUtil.toParamMap( wfsParams ) ).toURL()
+
+      println url
 
       buffer = url.text.replace(
           grailsLinkGenerator.link( base: geoserverBase, uri: '/wfs' ),
@@ -48,9 +53,9 @@ class GeoserverWfsProxyService
     if ( !cacheFile.exists() )
     {
       def url = grailsLinkGenerator.link( base: geoserverBase, absolute: true, uri: '/wfs',
-          params: wfsParams.toParamMap() ).toURL()
+          params: BindUtil.toParamMap( wfsParams ) ).toURL()
 
-//        println url
+      println url
 
       buffer = url.text.replace( geoserverBase, ogcBase )
       cacheFile.write( buffer )
@@ -61,5 +66,34 @@ class GeoserverWfsProxyService
     }
 
     [contentType: contentType, buffer: buffer]
+  }
+
+  def getFeature(GetFeatureRequest wfsParams)
+  {
+    def ogcBase = grailsLinkGenerator.serverBaseURL
+//    def name = wfsParams.find { it.key.equalsIgnoreCase( 'typeName' ) }?.value?.replace( ':', '_' )
+    def name = wfsParams.typeName?.replace( ':', '_' )
+    def cacheFile = new File( "/tmp", "geoserver-WFS-GetFeatureRequest-${name}.xml" )
+    def contentType = 'text/xml'
+    def buffer = null
+//      println cacheFile.absolutePath
+
+    if ( !cacheFile.exists() )
+    {
+      def url = grailsLinkGenerator.link( base: geoserverBase, absolute: true, uri: '/wfs',
+          params: BindUtil.toParamMap( wfsParams ) ).toURL()
+
+      println url
+
+      buffer = url.text.replace( geoserverBase, ogcBase )
+      cacheFile.write( buffer )
+    }
+    else
+    {
+      buffer = cacheFile.text
+    }
+
+    [contentType: contentType, buffer: buffer]
+
   }
 }

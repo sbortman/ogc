@@ -1,8 +1,9 @@
 package ogc.wfs
 
+import ogc.BindUtil
+
 class WfsController
 {
-  def geoserverWfsProxyService
   def webFeatureService
 
   def index()
@@ -15,13 +16,13 @@ class WfsController
     switch ( op.value.toUpperCase() )
     {
     case 'GETCAPABILITIES':
-      forward( action: 'getCapabilities', params: new GetCapabilitiesRequest().fixParamNames( wfsParams ) )
+      forward( action: 'getCapabilities', params: BindUtil.fixParamNames( GetCapabilitiesRequest, wfsParams ) )
       break
     case 'DESCRIBEFEATURETYPE':
-      forward( action: 'describeFeatureType', params: new DescribeFeatureTypeRequest().fixParamNames( wfsParams ) )
+      forward( action: 'describeFeatureType', params: BindUtil.fixParamNames( DescribeFeatureTypeRequest, wfsParams ) )
       break
     case 'GETFEATURE':
-
+      forward( action: 'getFeature', params: BindUtil.fixParamNames( GetFeatureRequest, wfsParams ) )
       break
     }
 
@@ -30,7 +31,7 @@ class WfsController
 
   def getCapabilities(GetCapabilitiesRequest input)
   {
-    println input
+    println "getCapabilities: ${params} ${request.method} ${input}"
 
     //def wfsParams = params - params.subMap( ['controller', 'format'] )
     def results = webFeatureService.getCapabilities( input )
@@ -40,7 +41,7 @@ class WfsController
 
   def describeFeatureType(DescribeFeatureTypeRequest input)
   {
-    println input
+    println "describeFeatureType: ${params} ${request.method} ${input}"
 
     //def wfsParams = params - params.subMap( ['controller', 'format'] )
     def results = webFeatureService.describeFeatureType( input )
@@ -48,8 +49,12 @@ class WfsController
     render contentType: results.contentType, text: results.buffer
   }
 
-  def getFeature()
+  def getFeature(GetFeatureRequest input)
   {
+    println "getFeature: ${params} ${request.method} ${input}"
+    //def results = webFeatureService.getFeature( input )
+    def results = webFeatureService.getFeature( input )
 
+    render contentType: results.contentType, text: results.buffer
   }
 }

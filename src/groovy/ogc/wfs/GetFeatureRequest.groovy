@@ -4,11 +4,11 @@ import grails.validation.Validateable
 import groovy.transform.ToString
 
 /**
- * Created by sbortman on 9/4/15.
+ * Created by sbortman on 9/22/15.
  */
 @Validateable
 @ToString( includeNames = true )
-class DescribeFeatureTypeRequest
+class GetFeatureRequest
 {
   static mapWith = 'none'
 
@@ -17,9 +17,16 @@ class DescribeFeatureTypeRequest
   String request
 
   String typeName
+  String filter
+  String resultType
+  String outputFormat
+  String sortBy
+  String propertyName
+
+  Integer maxFeatures
+  Integer startIndex
 
   static mapping = {
     version false
   }
-
 }

@@ -1,5 +1,7 @@
 package ogc.wfs
 
+import ogc.BindUtil
+
 class WfsFilters
 {
 
@@ -7,7 +9,7 @@ class WfsFilters
     wfsGetCapabilities( uri: '/wfs/getCapabilities' ) {
       before = {
         println "before: ${params}"
-        new GetCapabilitiesRequest().fixParamNames( params )
+        BindUtil.fixParamNames( GetCapabilitiesRequest, params )
         println "after: ${params}"
       }
       after = { Map model ->
@@ -20,7 +22,7 @@ class WfsFilters
     wfsDescribeFeatureType( uri: '/wfs/describeFeatureType' ) {
       before = {
         println "before: ${params}"
-        new DescribeFeatureTypeRequest().fixParamNames( params )
+        BindUtil.fixParamNames( DescribeFeatureTypeRequest, params )
         println "after: ${params}"
       }
       after = { Map model ->
@@ -29,9 +31,19 @@ class WfsFilters
       afterView = { Exception e ->
 
       }
-
-
     }
+    wfsGetFeature( uri: '/wfs/getFeature' ) {
+      before = {
+        println "before: ${params}"
+        BindUtil.fixParamNames( GetFeatureRequest, params )
+        println "after: ${params}"
+      }
+      after = { Map model ->
 
+      }
+      afterView = { Exception e ->
+
+      }
+    }
   }
 }

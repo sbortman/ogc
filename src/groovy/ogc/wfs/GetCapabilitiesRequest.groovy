@@ -2,14 +2,13 @@ package ogc.wfs
 
 import grails.validation.Validateable
 import groovy.transform.ToString
-import ogc.CaseInsensitiveBind
 
 /**
  * Created by sbortman on 9/3/15.
  */
 @Validateable
 @ToString( includeNames = true )
-class GetCapabilitiesRequest implements CaseInsensitiveBind
+class GetCapabilitiesRequest
 {
   static mapWith = 'none'
 

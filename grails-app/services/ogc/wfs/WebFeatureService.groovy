@@ -1,6 +1,9 @@
 package ogc.wfs
 
 import geoscript.feature.Schema
+import geoscript.filter.Filter
+import geoscript.layer.Layer
+import geoscript.layer.io.GmlWriter
 import geoscript.workspace.Workspace
 import groovy.xml.StreamingMarkupBuilder
 
@@ -369,6 +372,35 @@ class WebFeatureService
     xml.toString()
   }
 
+  private def generateHitCount(def hitCount, def namespaceInfo)
+  {
+    def namespaces = [
+        gml: "http://www.opengis.net/gml",
+        ogc: "http://www.opengis.net/ogc",
+        ows: "http://www.opengis.net/ows",
+        wfs: "http://www.opengis.net/wfs",
+        xlink: "http://www.w3.org/1999/xlink",
+        xs: "http://www.w3.org/2001/XMLSchema",
+        xsi: "http://www.w3.org/2001/XMLSchema-instance",
+    ]
+
+    namespaces[namespaceInfo.prefix] = namespaceInfo.uri
+
+    def x = {
+      mkp.xmlDeclaration()
+      mkp.declareNamespace( namespaces )
+      wfs.FeatureCollection(
+          numberOfFeatures: hitCount,
+          timeStamp: new Date().format( "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", TimeZone.getTimeZone( 'GMT' ) ),
+          'xsi:schemaLocation': "http://www.opengis.net/wfs http://schemas.opengis.net/wfs/1.1.0/wfs.xsd"
+      )
+    }
+
+    def xml = new StreamingMarkupBuilder( encoding: 'utf-8' ).bind( x )
+
+    xml.toString()
+  }
+
   def describeFeatureType(DescribeFeatureTypeRequest wfsParams)
   {
     def (namespacePrefix, layerName) = wfsParams?.typeName?.split( ':' )
@@ -382,18 +414,70 @@ class WebFeatureService
     String schemaLocation = grailsLinkGenerator.link( absolute: true, uri: '/' )
     def xml = null
 
-    Workspace.withWorkspace( layerInfo.workspaceInfo?.workspaceParams ) { Workspace workspace ->
+    Workspace.withWorkspace( layerInfo?.workspaceInfo?.workspaceParams ) { Workspace workspace ->
+
       Schema schema = workspace[layerName].schema
       String prefix = NamespaceInfo.findByUri( schema.uri ).prefix
 
       xml = generateSchema( schema, prefix, schemaLocation )
     }
 
+//    println xml
+
     [contentType: 'text/xml', buffer: xml]
   }
 
-  def getFeature(def wfsParams)
+  def getFeature(GetFeatureRequest wfsParams)
   {
+    println wfsParams
 
+    def (namespacePrefix, layerName) = wfsParams?.typeName?.split( ':' )
+
+    LayerInfo layerInfo = LayerInfo.where {
+      name == layerName && workspaceInfo.namespaceInfo.prefix == namespacePrefix
+    }.list().first()
+
+    def xml = null
+
+    Workspace.withWorkspace( layerInfo.workspaceInfo?.workspaceParams ) { Workspace workspace ->
+      def layer = workspace[layerName]
+      def filter = wfsParams.filter ?: Filter.PASS
+
+      switch ( wfsParams?.resultType?.toLowerCase() )
+      {
+      case "hits":
+        def hitCount = layer?.count( filter: filter )
+
+        xml = generateHitCount( hitCount, layerInfo?.workspaceInfo?.namespaceInfo )
+        break
+      case "results":
+        def writer = new GmlWriter()
+        def propertyNames = wfsParams?.propertyName?.split( ',' )
+        def newSchema = ( propertyNames ) ? layer?.schema?.includeFields( propertyNames as List, layer?.name ) : new Schema( layer?.name, layer?.schema?.fields, layer?.schema?.uri )
+        def newLayer = new Layer( newSchema.name, newSchema )
+
+        layer.eachFeature( filter: filter, fields: propertyNames ) {
+          newLayer.add( it )
+        }
+
+        xml = writer.write( newLayer, 3.0, false, false, true, namespacePrefix )
+        break
+
+      default:
+        def writer = new GmlWriter()
+        def propertyNames = wfsParams?.propertyName?.split( ',' )
+        def newSchema = ( propertyNames ) ? layer?.schema?.includeFields( propertyNames as List, layer?.name ) : new Schema( layer?.name, layer?.schema?.fields, layer?.schema?.uri )
+        def newLayer = new Layer( newSchema.name, newSchema )
+
+        layer.eachFeature( filter: filter, fields: propertyNames as List ) {
+          newLayer.add( it )
+        }
+
+        xml = writer.write( newLayer, 3.0, false, false, true, namespacePrefix )
+        break
+      }
+    }
+
+    [contentType: 'text/xml', buffer: xml]
   }
 }
