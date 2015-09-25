@@ -67,23 +67,26 @@
 */
 
         var getFeatureURL = "http://localhost:8080/geoserver/wfs";
-//        var getFeatureURL = "http://demo.boundlessgeo.com/geoserver/wfs";
+//        var getFeatureURL = "http://clc.developpement-durable.gouv.fr/geoserver/wfs";
 
-        getFeatureURL += "?service=WFS&version=1.1.0&request=GetFeature&typeName=topp:states&outputFormat=JSON";
+        getFeatureURL += "?service=WFS&version=1.1.0&request=GetFeature&typeName=topp:states&outputFormat=JSON&cql_filter=STATE_ABBR='IN'";
+        getFeatureURL = "/ogc/wfsParser/proxyWFS?url=" + btoa(getFeatureURL);
 
         console.log('getFeatureURL', getFeatureURL);
 
         $.ajax({
-            url: getFeatureURL,
-            crossDomain: true,
-            success: function (data) {
-                console.log('Success data', data);
+            url:  getFeatureURL,
+            success: function(data) {
+                var results = $.parseJSON(data);
 
-            },
-            error: function(data){
-                console.log('Error', data);
-            }
-        });
+                console.log(results);
+            },
+            error: function(error) {
+                console.log(error);
+            }
+        });
+
+
     } );
 </asset:script>
 <asset:deferredScripts/>
