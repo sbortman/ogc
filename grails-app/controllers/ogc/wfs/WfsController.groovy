@@ -8,6 +8,8 @@ class WfsController
 
   def index()
   {
+    println params
+
     def wfsParams = params - params.subMap( ['controller', 'format'] )
     def op = wfsParams.find { it.key.equalsIgnoreCase( 'request' ) }
 
@@ -52,7 +54,7 @@ class WfsController
   def getFeature(GetFeatureRequest input)
   {
     println "getFeature: ${params} ${request.method} ${input}"
-    //def results = webFeatureService.getFeature( input )
+    //def results = geoserverFeatureService.getFeature( input )
     def results = webFeatureService.getFeature( input )
 
     render contentType: results.contentType, text: results.buffer
