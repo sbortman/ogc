@@ -5,48 +5,78 @@
 //= require OpenLayersLite-formats.js
 //= require_self
 
-var OGC = OGC || {};
+var OGC = OGC || {WFS:{} };
 
-OGC.WFSClient = OpenLayers.Class( {
+OGC.WFS.Client = OpenLayers.Class( {
     initialize: function ( wfsServer )
     {
         this.wfsServer = wfsServer;
-
+        this.wfsFeatureTypes = this.getFeatureTypes();
+        this.wfsFeatureTypeSchemas = this.getFeatureTypeSchema();
         //console.log(this.wfsServer);
     },
-    getFeatureTypeNames: function ()
+    getFeatureTypes: function (cb)
     {
-        var formatter = new OpenLayers.Format.WFSCapabilities();
-        var featureTypeNames = [];
 
-        $.ajax( {
-            url: this.wfsServer + '?service=WFS&version=1.1.0&request=GetCapabilities',
-            success: function ( data )
-            {
-                // use the tool to parse the data
-                var response = (formatter.read( data ));
+        var localFeatureTypes = [];
+        var isAsync = (cb instanceof Function);
+        if(this.wfsFeatureTypes === undefined){
 
-                //console.log('response', response);
+            var formatter = new OpenLayers.Format.WFSCapabilities();
 
-                // this object contains all the GetCapabilities data
-                //var capability = response.capability;
+            var that = this;
 
-                // I want a list of names to use in my queries
-                for ( var i = 0; i < response.featureTypeList.featureTypes.length; i++ )
+            $.ajax( {
+                url: this.wfsServer + '?service=WFS&version=1.1.0&request=GetCapabilities',
+                async: isAsync, // TODO: Refactor with better solution.  This is not recommended:
+                // http://stackoverflow.com/a/14220323/4437795
+                success: function ( data )
                 {
-                    var featureType = response.featureTypeList.featureTypes[i];
+                    // use the tool to parse the data
+                    var response = (formatter.read( data ));
 
-//                    console.log( 'featureType', featureType );
+                    //console.log('response', response);
 
-                    featureTypeNames.push( featureType.name );
+                    // this object contains all the GetCapabilities data
+                    //var capability = response.capability;
+
+                    // I want a list of names to use in my queries
+                    for ( var i = 0; i < response.featureTypeList.featureTypes.length; i++ )
+                    {
+                        var featureType = response.featureTypeList.featureTypes[i];
+
+    //                    console.log( 'featureType', featureType );
+
+                        localFeatureTypes.push( featureType );
+                    }
+
+                    //console.log( featureTypeNames );
+                    //return featureTypeNames;
+
                 }
+            } );
+            that.featureTypes = localFeatureTypes;
+            console.log('fetching...');
 
-                console.log( featureTypeNames );
-            }
-        } );
+        } else {
+
+            console.log('cached...');
+
+        }
+
+        if (isAsync){
+            console.log('We are ASync!');
+            cb(this.featureTypes);
+        }
+        console.log(isAsync);
+
+        return this.featureTypes;
+
     },
     getFeatureTypeSchema: function ( featureTypeName )
     {
+
+
         var formatter2 = new OpenLayers.Format.WFSDescribeFeatureType();
         $.ajax( {
             url: this.wfsServer + '?service=WFS&version=1.1.0&request=DescribeFeatureType&typeName=' + featureTypeName,
@@ -62,6 +92,7 @@ OGC.WFSClient = OpenLayers.Class( {
                 console.log( 'error', error );
             }
         } );
+
     },
     getFeature: function (featureTypeName, filter)
     {
@@ -85,5 +116,5 @@ OGC.WFSClient = OpenLayers.Class( {
             }
         } );
     },
-    CLASS_NAME: "OGC.WFSClient"
+    CLASS_NAME: "OGC.WFS.Client"
 } );
