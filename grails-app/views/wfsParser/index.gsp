@@ -16,7 +16,7 @@
 <asset:script>
     $(document).ready(function(){
 //        var wfsServer = "http://localhost:8080/geoserver/wfs";
-        var wfsServer = "http://localhost:9999/ogc/wfs";
+        var wfsServer = "${createLink( absolute: true, controller: 'wfs' )}";
 //        var wfsServer = 'http://demo.boundlessgeo.com/geoserver/wfs';
 //	    var wfsServer = 'http://clc.developpement-durable.gouv.fr/geoserver/wfs';
 
