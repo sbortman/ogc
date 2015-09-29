@@ -33,15 +33,61 @@ OGC.WFS.Client = OpenLayers.Class( {
                 request: 'GetCapabilities'
             };
 
-            $.ajax( {
+            //$.ajax( {
+            //    url: this.wfsServer,
+            //    data: params,
+            //    async: isAsync, // TODO: Refactor with better solution.  This is not recommended:
+            //    // http://stackoverflow.com/a/14220323/4437795
+            //    success: function ( data )
+            //    {
+            //        // use the tool to parse the data
+            //        var response = (formatter.read( data ));
+            //
+            //        //console.log( 'formatter', formatter );
+            //        //console.log( 'namespaces', formatter.namespaces );
+            //        //console.log( 'namespaceAlias', formatter.namespaceAlias );
+            //
+            //        //console.log('response', response);
+            //
+            //        // this object contains all the GetCapabilities data
+            //        //var capability = response.capability;
+            //
+            //        // I want a list of names to use in my queries
+            //        for ( var i = 0; i < response.featureTypeList.featureTypes.length; i++ )
+            //        {
+            //            var featureType = response.featureTypeList.featureTypes[i];
+            //
+            //            //                    console.log( 'featureType', featureType );
+            //
+            //            localFeatureTypes.push( featureType );
+            //
+            //            //console.log(formatter.namespaceAlias);
+            //
+            //            //console.log('fullName', formatter.namespaceAlias[featureType.featureNS] + ':' + featureType.name)
+            //        }
+            //
+            //        //console.log( featureTypeNames );
+            //        //return featureTypeNames;
+            //
+            //    }
+            //} );
+            //that.featureTypes = localFeatureTypes;
+            //console.log( 'fetching...' );
+
+            OpenLayers.Request.GET({
                 url: this.wfsServer,
-                data: params,
-                async: isAsync, // TODO: Refactor with better solution.  This is not recommended:
-                // http://stackoverflow.com/a/14220323/4437795
-                success: function ( data )
+                async: isAsync,
+                params: params,
+                success: function ( request )
                 {
+
+                    var doc = request.responseXML;
+                    if (!doc || !doc.documentElement) {
+                        doc = request.responseText;
+                    }
+
                     // use the tool to parse the data
-                    var response = (formatter.read( data ));
+                    var response = (formatter.read( doc ));
 
                     //console.log( 'formatter', formatter );
                     //console.log( 'namespaces', formatter.namespaces );
@@ -70,9 +116,8 @@ OGC.WFS.Client = OpenLayers.Class( {
                     //return featureTypeNames;
 
                 }
-            } );
+            });
             that.featureTypes = localFeatureTypes;
-            //console.log( 'fetching...' );
 
         }
         else
@@ -116,14 +161,20 @@ OGC.WFS.Client = OpenLayers.Class( {
         var isAsync = (callback instanceof Function);
         var results;
 
-        $.ajax( {
+        OpenLayers.Request.GET({
             url: this.wfsServer,
-            data: params,
-            dataType: "html",
+            params: params,
+            //dataType: "html",
             async: isAsync,
-            success: function ( data )
+            success: function ( request )
             {
-                var response = (formatter2.read( data ));
+                var doc = request.responseXML;
+                if (!doc || !doc.documentElement) {
+                    doc = request.responseText;
+                }
+
+                // use the tool to parse the data
+                var response = (formatter2.read( doc ));
 
                 //console.log( 'response', response );
                 results = response;
@@ -136,27 +187,40 @@ OGC.WFS.Client = OpenLayers.Class( {
 
         return results;
     },
-    getFeature: function ( featureTypeName, filter )
+    getFeature: function ( featureTypeName, namespace, filter, callback )
     {
-        var getFeatureURL = this.wfsServer + "?service=WFS&version=1.1.0&request=GetFeature&typeName=" + featureTypeName + "&outputFormat=GML&filter=" + filter;
+        var params = {
+            service: 'WFS',
+            version: '1.1.0',
+            request: 'GetFeature',
+            typeName: 'ns1:' + featureTypeName,
+            namespace: 'xmlns(ns1=' + namespace + ')',
+            outputFormat: 'GML',
+            filter: filter || ''
+        };
 
-        getFeatureURL = "/ogc/wfsParser/proxyWFS?url=" + btoa( getFeatureURL );
+        var isAsync = (callback instanceof Function);
 
-        console.log( 'getFeatureURL', getFeatureURL );
-
-        $.ajax( {
-            url: getFeatureURL,
-            success: function ( data )
+        OpenLayers.Request.GET({
+            url: this.wfsServer,
+            params: params,
+            success: function ( request )
             {
-                //var results = $.parseJSON( data );
+                //var results = $.parseJSON( request );
+                if (isAsync){
+                    callback(request);
+                }
 
-                console.log( data );
+
             },
             error: function ( error )
             {
                 console.log( error );
             }
         } );
+
+
+
     },
     CLASS_NAME: "OGC.WFS.Client"
 } );
@@ -175,6 +239,17 @@ var WFSClient = (function ()
         console.log( wfsClient.getFeatureTypes() );
 
         console.log( wfsClient.getFeatureTypeSchema('states', 'http://www.openplans.org/topp'));
+
+
+        wfsClient.getFeature(
+            'states',
+            'http://www.openplans.org/topp',
+            "STATE_ABBR='IN'",
+            function (it){
+                console.log(it);
+            }
+         );
+
 
         //
         //wfsClient.getFeatureTypes( function ( w )
