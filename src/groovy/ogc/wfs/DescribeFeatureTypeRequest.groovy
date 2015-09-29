@@ -17,6 +17,7 @@ class DescribeFeatureTypeRequest
   String request
 
   String typeName
+  String namespace
 
   static mapping = {
     version false

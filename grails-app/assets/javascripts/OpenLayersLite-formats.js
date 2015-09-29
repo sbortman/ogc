@@ -6973,6 +6973,2165 @@ OpenLayers.Format.WFSCapabilities.v1_1_0 = OpenLayers.Class(
 
 });
 /* ======================================================================
+    OpenLayers/Events.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+
+/**
+ * @requires OpenLayers/Util.js
+ */
+
+/**
+ * Namespace: OpenLayers.Event
+ * Utility functions for event handling.
+ */
+OpenLayers.Event = {
+
+    /** 
+     * Property: observers 
+     * {Object} A hashtable cache of the event observers. Keyed by
+     * element._eventCacheID 
+     */
+    observers: false,
+
+    /**
+     * Constant: KEY_SPACE
+     * {int}
+     */
+    KEY_SPACE: 32,
+    
+    /** 
+     * Constant: KEY_BACKSPACE 
+     * {int} 
+     */
+    KEY_BACKSPACE: 8,
+
+    /** 
+     * Constant: KEY_TAB 
+     * {int} 
+     */
+    KEY_TAB: 9,
+
+    /** 
+     * Constant: KEY_RETURN 
+     * {int} 
+     */
+    KEY_RETURN: 13,
+
+    /** 
+     * Constant: KEY_ESC 
+     * {int} 
+     */
+    KEY_ESC: 27,
+
+    /** 
+     * Constant: KEY_LEFT 
+     * {int} 
+     */
+    KEY_LEFT: 37,
+
+    /** 
+     * Constant: KEY_UP 
+     * {int} 
+     */
+    KEY_UP: 38,
+
+    /** 
+     * Constant: KEY_RIGHT 
+     * {int} 
+     */
+    KEY_RIGHT: 39,
+
+    /** 
+     * Constant: KEY_DOWN 
+     * {int} 
+     */
+    KEY_DOWN: 40,
+
+    /** 
+     * Constant: KEY_DELETE 
+     * {int} 
+     */
+    KEY_DELETE: 46,
+
+
+    /**
+     * Method: element
+     * Cross browser event element detection.
+     * 
+     * Parameters:
+     * event - {Event} 
+     * 
+     * Returns:
+     * {DOMElement} The element that caused the event 
+     */
+    element: function(event) {
+        return event.target || event.srcElement;
+    },
+
+    /**
+     * Method: isSingleTouch
+     * Determine whether event was caused by a single touch
+     *
+     * Parameters:
+     * event - {Event}
+     *
+     * Returns:
+     * {Boolean}
+     */
+    isSingleTouch: function(event) {
+        return event.touches && event.touches.length == 1;
+    },
+
+    /**
+     * Method: isMultiTouch
+     * Determine whether event was caused by a multi touch
+     *
+     * Parameters:
+     * event - {Event}
+     *
+     * Returns:
+     * {Boolean}
+     */
+    isMultiTouch: function(event) {
+        return event.touches && event.touches.length > 1;
+    },
+
+    /**
+     * Method: isTouchEvent
+     * Determine whether the event was triggered by a touch
+     * 
+     * Parameters:
+     * evt - {Event}
+     * 
+     * Returns:
+     * {Boolean}
+     */
+    isTouchEvent: function(evt) {
+        return ("" + evt.type).indexOf("touch") === 0 || (
+                "pointerType" in evt && (
+                     evt.pointerType === evt.MSPOINTER_TYPE_MOUSE /*IE10 pointer*/ ||
+                     evt.pointerType === "touch" /*W3C pointer*/));
+    },
+
+    /**
+     * Method: isLeftClick
+     * Determine whether event was caused by a left click. 
+     *
+     * Parameters:
+     * event - {Event} 
+     * 
+     * Returns:
+     * {Boolean}
+     */
+    isLeftClick: function(event) {
+        return (((event.which) && (event.which == 1)) ||
+                ((event.button) && (event.button == 1)));
+    },
+
+    /**
+     * Method: isRightClick
+     * Determine whether event was caused by a right mouse click. 
+     *
+     * Parameters:
+     * event - {Event} 
+     * 
+     * Returns:
+     * {Boolean}
+     */
+     isRightClick: function(event) {
+        return (((event.which) && (event.which == 3)) ||
+                ((event.button) && (event.button == 2)));
+    },
+     
+    /**
+     * Method: stop
+     * Stops an event from propagating. 
+     *
+     * Parameters: 
+     * event - {Event} 
+     * allowDefault - {Boolean} If true, we stop the event chain but 
+     *     still allow the default browser behaviour (text selection,
+     *     radio-button clicking, etc).  Default is false.
+     */
+    stop: function(event, allowDefault) {
+        
+        if (!allowDefault) { 
+            OpenLayers.Event.preventDefault(event);
+        }
+                
+        if (event.stopPropagation) {
+            event.stopPropagation();
+        } else {
+            event.cancelBubble = true;
+        }
+    },
+
+    /**
+     * Method: preventDefault
+     * Cancels the event if it is cancelable, without stopping further
+     * propagation of the event.
+     *
+     * Parameters:
+     * event - {Event}
+     */
+    preventDefault: function(event) {
+        if (event.preventDefault) {
+            event.preventDefault();
+        } else {
+            event.returnValue = false;
+        }
+    },
+
+    /** 
+     * Method: findElement
+     * 
+     * Parameters:
+     * event - {Event} 
+     * tagName - {String} 
+     * 
+     * Returns:
+     * {DOMElement} The first node with the given tagName, starting from the
+     * node the event was triggered on and traversing the DOM upwards
+     */
+    findElement: function(event, tagName) {
+        var element = OpenLayers.Event.element(event);
+        while (element.parentNode && (!element.tagName ||
+              (element.tagName.toUpperCase() != tagName.toUpperCase()))){
+            element = element.parentNode;
+        }
+        return element;
+    },
+
+    /** 
+     * Method: observe
+     * 
+     * Parameters:
+     * elementParam - {DOMElement || String} 
+     * name - {String} 
+     * observer - {function} 
+     * useCapture - {Boolean} 
+     */
+    observe: function(elementParam, name, observer, useCapture) {
+        var element = OpenLayers.Util.getElement(elementParam);
+        useCapture = useCapture || false;
+
+        if (name == 'keypress' &&
+           (navigator.appVersion.match(/Konqueror|Safari|KHTML/)
+           || element.attachEvent)) {
+            name = 'keydown';
+        }
+
+        //if observers cache has not yet been created, create it
+        if (!this.observers) {
+            this.observers = {};
+        }
+
+        //if not already assigned, make a new unique cache ID
+        if (!element._eventCacheID) {
+            var idPrefix = "eventCacheID_";
+            if (element.id) {
+                idPrefix = element.id + "_" + idPrefix;
+            }
+            element._eventCacheID = OpenLayers.Util.createUniqueID(idPrefix);
+        }
+
+        var cacheID = element._eventCacheID;
+
+        //if there is not yet a hash entry for this element, add one
+        if (!this.observers[cacheID]) {
+            this.observers[cacheID] = [];
+        }
+
+        //add a new observer to this element's list
+        this.observers[cacheID].push({
+            'element': element,
+            'name': name,
+            'observer': observer,
+            'useCapture': useCapture
+        });
+
+        //add the actual browser event listener
+        if (element.addEventListener) {
+            element.addEventListener(name, observer, useCapture);
+        } else if (element.attachEvent) {
+            element.attachEvent('on' + name, observer);
+        }
+    },
+
+    /** 
+     * Method: stopObservingElement
+     * Given the id of an element to stop observing, cycle through the 
+     *   element's cached observers, calling stopObserving on each one, 
+     *   skipping those entries which can no longer be removed.
+     * 
+     * parameters:
+     * elementParam - {DOMElement || String} 
+     */
+    stopObservingElement: function(elementParam) {
+        var element = OpenLayers.Util.getElement(elementParam);
+        var cacheID = element._eventCacheID;
+
+        this._removeElementObservers(OpenLayers.Event.observers[cacheID]);
+    },
+
+    /**
+     * Method: _removeElementObservers
+     *
+     * Parameters:
+     * elementObservers - {Array(Object)} Array of (element, name, 
+     *                                         observer, usecapture) objects, 
+     *                                         taken directly from hashtable
+     */
+    _removeElementObservers: function(elementObservers) {
+        if (elementObservers) {
+            for(var i = elementObservers.length-1; i >= 0; i--) {
+                var entry = elementObservers[i];
+                OpenLayers.Event.stopObserving.apply(this, [
+                    entry.element, entry.name, entry.observer, entry.useCapture
+                ]);
+            }
+        }
+    },
+
+    /**
+     * Method: stopObserving
+     * 
+     * Parameters:
+     * elementParam - {DOMElement || String} 
+     * name - {String} 
+     * observer - {function} 
+     * useCapture - {Boolean} 
+     *  
+     * Returns:
+     * {Boolean} Whether or not the event observer was removed
+     */
+    stopObserving: function(elementParam, name, observer, useCapture) {
+        useCapture = useCapture || false;
+    
+        var element = OpenLayers.Util.getElement(elementParam);
+        var cacheID = element._eventCacheID;
+
+        if (name == 'keypress') {
+            if ( navigator.appVersion.match(/Konqueror|Safari|KHTML/) || 
+                 element.detachEvent) {
+              name = 'keydown';
+            }
+        }
+
+        // find element's entry in this.observers cache and remove it
+        var foundEntry = false;
+        var elementObservers = OpenLayers.Event.observers[cacheID];
+        if (elementObservers) {
+    
+            // find the specific event type in the element's list
+            var i=0;
+            while(!foundEntry && i < elementObservers.length) {
+                var cacheEntry = elementObservers[i];
+    
+                if ((cacheEntry.name == name) &&
+                    (cacheEntry.observer == observer) &&
+                    (cacheEntry.useCapture == useCapture)) {
+    
+                    elementObservers.splice(i, 1);
+                    if (elementObservers.length == 0) {
+                        delete OpenLayers.Event.observers[cacheID];
+                    }
+                    foundEntry = true;
+                    break; 
+                }
+                i++;           
+            }
+        }
+    
+        //actually remove the event listener from browser
+        if (foundEntry) {
+            if (element.removeEventListener) {
+                element.removeEventListener(name, observer, useCapture);
+            } else if (element && element.detachEvent) {
+                element.detachEvent('on' + name, observer);
+            }
+        }
+        return foundEntry;
+    },
+    
+    /** 
+     * Method: unloadCache
+     * Cycle through all the element entries in the events cache and call
+     *   stopObservingElement on each. 
+     */
+    unloadCache: function() {
+        // check for OpenLayers.Event before checking for observers, because
+        // OpenLayers.Event may be undefined in IE if no map instance was
+        // created
+        if (OpenLayers.Event && OpenLayers.Event.observers) {
+            for (var cacheID in OpenLayers.Event.observers) {
+                var elementObservers = OpenLayers.Event.observers[cacheID];
+                OpenLayers.Event._removeElementObservers.apply(this, 
+                                                           [elementObservers]);
+            }
+            OpenLayers.Event.observers = false;
+        }
+    },
+
+    CLASS_NAME: "OpenLayers.Event"
+};
+
+/* prevent memory leaks in IE */
+OpenLayers.Event.observe(window, 'unload', OpenLayers.Event.unloadCache, false);
+
+/**
+ * Class: OpenLayers.Events
+ */
+OpenLayers.Events = OpenLayers.Class({
+
+    /** 
+     * Constant: BROWSER_EVENTS
+     * {Array(String)} supported events 
+     */
+    BROWSER_EVENTS: [
+        "mouseover", "mouseout",
+        "mousedown", "mouseup", "mousemove", 
+        "click", "dblclick", "rightclick", "dblrightclick",
+        "resize", "focus", "blur",
+        "touchstart", "touchmove", "touchend",
+        "keydown"
+    ],
+    
+    /**
+     * Constant: standard pointer model
+     * {string}
+     */
+    TOUCH_MODEL_POINTER: "pointer",
+
+    /**
+     * Constant: prefixed pointer model (IE10)
+     * {string}
+     */
+    TOUCH_MODEL_MSPOINTER: "MSPointer",
+
+    /**
+     * Constant: legacy touch model
+     * {string}
+     */
+    TOUCH_MODEL_TOUCH: "touch",
+
+    /** 
+     * Property: listeners 
+     * {Object} Hashtable of Array(Function): events listener functions  
+     */
+    listeners: null,
+
+    /** 
+     * Property: object 
+     * {Object}  the code object issuing application events 
+     */
+    object: null,
+
+    /** 
+     * Property: element 
+     * {DOMElement}  the DOM element receiving browser events 
+     */
+    element: null,
+
+    /** 
+     * Property: eventHandler 
+     * {Function}  bound event handler attached to elements 
+     */
+    eventHandler: null,
+
+    /** 
+     * APIProperty: fallThrough 
+     * {Boolean} 
+     */
+    fallThrough: null,
+
+    /** 
+     * APIProperty: includeXY
+     * {Boolean} Should the .xy property automatically be created for browser
+     *    mouse events? In general, this should be false. If it is true, then
+     *    mouse events will automatically generate a '.xy' property on the 
+     *    event object that is passed. (Prior to OpenLayers 2.7, this was true
+     *    by default.) Otherwise, you can call the getMousePosition on the
+     *    relevant events handler on the object available via the 'evt.object'
+     *    property of the evt object. So, for most events, you can call:
+     *    function named(evt) { 
+     *        this.xy = this.object.events.getMousePosition(evt) 
+     *    } 
+     *
+     *    This option typically defaults to false for performance reasons:
+     *    when creating an events object whose primary purpose is to manage
+     *    relatively positioned mouse events within a div, it may make
+     *    sense to set it to true.
+     *
+     *    This option is also used to control whether the events object caches
+     *    offsets. If this is false, it will not: the reason for this is that
+     *    it is only expected to be called many times if the includeXY property
+     *    is set to true. If you set this to true, you are expected to clear 
+     *    the offset cache manually (using this.clearMouseCache()) if:
+     *        the border of the element changes
+     *        the location of the element in the page changes
+    */
+    includeXY: false,      
+    
+    /**
+     * APIProperty: extensions
+     * {Object} Event extensions registered with this instance. Keys are
+     *     event types, values are {OpenLayers.Events.*} extension instances or
+     *     {Boolean} for events that an instantiated extension provides in
+     *     addition to the one it was created for.
+     *
+     * Extensions create an event in addition to browser events, which usually
+     * fires when a sequence of browser events is completed. Extensions are
+     * automatically instantiated when a listener is registered for an event
+     * provided by an extension.
+     *
+     * Extensions are created in the <OpenLayers.Events> namespace using
+     * <OpenLayers.Class>, and named after the event they provide.
+     * The constructor receives the target <OpenLayers.Events> instance as
+     * argument. Extensions that need to capture browser events before they
+     * propagate can register their listeners events using <register>, with
+     * {extension: true} as 4th argument.
+     *
+     * If an extension creates more than one event, an alias for each event
+     * type should be created and reference the same class. The constructor
+     * should set a reference in the target's extensions registry to itself.
+     *
+     * Below is a minimal extension that provides the "foostart" and "fooend"
+     * event types, which replace the native "click" event type if clicked on
+     * an element with the css class "foo":
+     *
+     * (code)
+     *   OpenLayers.Events.foostart = OpenLayers.Class({
+     *       initialize: function(target) {
+     *           this.target = target;
+     *           this.target.register("click", this, this.doStuff, {extension: true});
+     *           // only required if extension provides more than one event type
+     *           this.target.extensions["foostart"] = true;
+     *           this.target.extensions["fooend"] = true;
+     *       },
+     *       destroy: function() {
+     *           var target = this.target;
+     *           target.unregister("click", this, this.doStuff);
+     *           delete this.target;
+     *           // only required if extension provides more than one event type
+     *           delete target.extensions["foostart"];
+     *           delete target.extensions["fooend"];
+     *       },
+     *       doStuff: function(evt) {
+     *           var propagate = true;
+     *           if (OpenLayers.Event.element(evt).className === "foo") {
+     *               propagate = false;
+     *               var target = this.target;
+     *               target.triggerEvent("foostart");
+     *               window.setTimeout(function() {
+     *                   target.triggerEvent("fooend");
+     *               }, 1000);
+     *           }
+     *           return propagate;
+     *       }
+     *   });
+     *   // only required if extension provides more than one event type
+     *   OpenLayers.Events.fooend = OpenLayers.Events.foostart;
+     * (end)
+     * 
+     */
+    extensions: null,
+    
+    /**
+     * Property: extensionCount
+     * {Object} Keys are event types (like in <listeners>), values are the
+     *     number of extension listeners for each event type.
+     */
+    extensionCount: null,
+
+    /**
+     * Method: clearMouseListener
+     * A version of <clearMouseCache> that is bound to this instance so that
+     *     it can be used with <OpenLayers.Event.observe> and
+     *     <OpenLayers.Event.stopObserving>.
+     */
+    clearMouseListener: null,
+
+    /**
+     * Constructor: OpenLayers.Events
+     * Construct an OpenLayers.Events object.
+     *
+     * Parameters:
+     * object - {Object} The js object to which this Events object  is being added
+     * element - {DOMElement} A dom element to respond to browser events
+     * eventTypes - {Array(String)} Deprecated.  Array of custom application
+     *     events.  A listener may be registered for any named event, regardless
+     *     of the values provided here.
+     * fallThrough - {Boolean} Allow events to fall through after these have
+     *                         been handled?
+     * options - {Object} Options for the events object.
+     */
+    initialize: function (object, element, eventTypes, fallThrough, options) {
+        OpenLayers.Util.extend(this, options);
+        this.object     = object;
+        this.fallThrough = fallThrough;
+        this.listeners  = {};
+        this.extensions = {};
+        this.extensionCount = {};
+        this._pointerTouches = [];
+        
+        // if a dom element is specified, add a listeners list 
+        // for browser events on the element and register them
+        if (element != null) {
+            this.attachToElement(element);
+        }
+    },
+
+    /**
+     * APIMethod: destroy
+     */
+    destroy: function () {
+        for (var e in this.extensions) {
+            if (typeof this.extensions[e] !== "boolean") {
+                this.extensions[e].destroy();
+            }
+        }
+        this.extensions = null;
+        if (this.element) {
+            OpenLayers.Event.stopObservingElement(this.element);
+            if(this.element.hasScrollEvent) {
+                OpenLayers.Event.stopObserving(
+                    window, "scroll", this.clearMouseListener
+                );
+            }
+        }
+        this.element = null;
+
+        this.listeners = null;
+        this.object = null;
+        this.fallThrough = null;
+        this.eventHandler = null;
+    },
+
+    /**
+     * APIMethod: addEventType
+     * Deprecated.  Any event can be triggered without adding it first.
+     * 
+     * Parameters:
+     * eventName - {String}
+     */
+    addEventType: function(eventName) {
+    },
+
+    /**
+     * Method: attachToElement
+     *
+     * Parameters:
+     * element - {HTMLDOMElement} a DOM element to attach browser events to
+     */
+    attachToElement: function (element) {
+        if (this.element) {
+            OpenLayers.Event.stopObservingElement(this.element);
+        } else {
+            // keep a bound copy of handleBrowserEvent() so that we can
+            // pass the same function to both Event.observe() and .stopObserving()
+            this.eventHandler = OpenLayers.Function.bindAsEventListener(
+                this.handleBrowserEvent, this
+            );
+            
+            // to be used with observe and stopObserving
+            this.clearMouseListener = OpenLayers.Function.bind(
+                this.clearMouseCache, this
+            );
+        }
+        this.element = element;
+        var touchModel = this.getTouchModel();
+        var type;
+        for (var i = 0, len = this.BROWSER_EVENTS.length; i < len; i++) {
+            type = this.BROWSER_EVENTS[i];
+            // register the event cross-browser
+            OpenLayers.Event.observe(element, type, this.eventHandler
+            );
+            if ((touchModel === this.TOUCH_MODEL_POINTER ||
+                    touchModel === this.TOUCH_MODEL_MSPOINTER) &&
+                    type.indexOf('touch') === 0) {
+                this.addPointerTouchListener(element, type, this.eventHandler);
+            }
+        }
+        // disable dragstart in IE so that mousedown/move/up works normally
+        OpenLayers.Event.observe(element, "dragstart", OpenLayers.Event.stop);
+    },
+    
+    /**
+     * APIMethod: on
+     * Convenience method for registering listeners with a common scope.
+     *     Internally, this method calls <register> as shown in the examples
+     *     below.
+     *
+     * Example use:
+     * (code)
+     * // register a single listener for the "loadstart" event
+     * events.on({"loadstart": loadStartListener});
+     *
+     * // this is equivalent to the following
+     * events.register("loadstart", undefined, loadStartListener);
+     *
+     * // register multiple listeners to be called with the same `this` object
+     * events.on({
+     *     "loadstart": loadStartListener,
+     *     "loadend": loadEndListener,
+     *     scope: object
+     * });
+     *
+     * // this is equivalent to the following
+     * events.register("loadstart", object, loadStartListener);
+     * events.register("loadend", object, loadEndListener);
+     * (end)
+     *
+     * Parameters:
+     *  object - {Object}     
+     */
+    on: function(object) {
+        for(var type in object) {
+            if(type != "scope" && object.hasOwnProperty(type)) {
+                this.register(type, object.scope, object[type]);
+            }
+        }
+    },
+
+    /**
+     * APIMethod: register
+     * Register an event on the events object.
+     *
+     * When the event is triggered, the 'func' function will be called, in the
+     * context of 'obj'. Imagine we were to register an event, specifying an 
+     * OpenLayers.Bounds Object as 'obj'. When the event is triggered, the 
+     * context in the callback function will be our Bounds object. This means
+     * that within our callback function, we can access the properties and 
+     * methods of the Bounds object through the "this" variable. So our 
+     * callback could execute something like: 
+     * :    leftStr = "Left: " + this.left;
+     *   
+     *                   or
+     *  
+     * :    centerStr = "Center: " + this.getCenterLonLat();
+     *
+     * Parameters:
+     * type - {String} Name of the event to register
+     * obj - {Object} The object to bind the context to for the callback#.
+     *     If no object is specified, default is the Events's 'object' property.
+     * func - {Function} The callback function. If no callback is 
+     *     specified, this function does nothing.
+     * priority - {Boolean|Object} If true, adds the new listener to the
+     *     *front* of the events queue instead of to the end.
+     *
+     * Valid options for priority:
+     * extension - {Boolean} If true, then the event will be registered as
+     *     extension event. Extension events are handled before all other
+     *     events.
+     */
+    register: function (type, obj, func, priority) {
+        if (type in OpenLayers.Events && !this.extensions[type]) {
+            this.extensions[type] = new OpenLayers.Events[type](this);
+        }
+        if (func != null) {
+            if (obj == null)  {
+                obj = this.object;
+            }
+            var listeners = this.listeners[type];
+            if (!listeners) {
+                listeners = [];
+                this.listeners[type] = listeners;
+                this.extensionCount[type] = 0;
+            }
+            var listener = {obj: obj, func: func};
+            if (priority) {
+                listeners.splice(this.extensionCount[type], 0, listener);
+                if (typeof priority === "object" && priority.extension) {
+                    this.extensionCount[type]++;
+                }
+            } else {
+                listeners.push(listener);
+            }
+        }
+    },
+
+    /**
+     * APIMethod: registerPriority
+     * Same as register() but adds the new listener to the *front* of the
+     *     events queue instead of to the end.
+     *    
+     *     TODO: get rid of this in 3.0 - Decide whether listeners should be 
+     *     called in the order they were registered or in reverse order.
+     *
+     *
+     * Parameters:
+     * type - {String} Name of the event to register
+     * obj - {Object} The object to bind the context to for the callback#.
+     *                If no object is specified, default is the Events's 
+     *                'object' property.
+     * func - {Function} The callback function. If no callback is 
+     *                   specified, this function does nothing.
+     */
+    registerPriority: function (type, obj, func) {
+        this.register(type, obj, func, true);
+    },
+    
+    /**
+     * APIMethod: un
+     * Convenience method for unregistering listeners with a common scope.
+     *     Internally, this method calls <unregister> as shown in the examples
+     *     below.
+     *
+     * Example use:
+     * (code)
+     * // unregister a single listener for the "loadstart" event
+     * events.un({"loadstart": loadStartListener});
+     *
+     * // this is equivalent to the following
+     * events.unregister("loadstart", undefined, loadStartListener);
+     *
+     * // unregister multiple listeners with the same `this` object
+     * events.un({
+     *     "loadstart": loadStartListener,
+     *     "loadend": loadEndListener,
+     *     scope: object
+     * });
+     *
+     * // this is equivalent to the following
+     * events.unregister("loadstart", object, loadStartListener);
+     * events.unregister("loadend", object, loadEndListener);
+     * (end)
+     */
+    un: function(object) {
+        for(var type in object) {
+            if(type != "scope" && object.hasOwnProperty(type)) {
+                this.unregister(type, object.scope, object[type]);
+            }
+        }
+    },
+
+    /**
+     * APIMethod: unregister
+     *
+     * Parameters:
+     * type - {String} 
+     * obj - {Object} If none specified, defaults to this.object
+     * func - {Function} 
+     */
+    unregister: function (type, obj, func) {
+        if (obj == null)  {
+            obj = this.object;
+        }
+        var listeners = this.listeners[type];
+        if (listeners != null) {
+            for (var i=0, len=listeners.length; i<len; i++) {
+                if (listeners[i].obj == obj && listeners[i].func == func) {
+                    listeners.splice(i, 1);
+                    break;
+                }
+            }
+        }
+    },
+
+    /** 
+     * Method: remove
+     * Remove all listeners for a given event type. If type is not registered,
+     *     does nothing.
+     *
+     * Parameters:
+     * type - {String} 
+     */
+    remove: function(type) {
+        if (this.listeners[type] != null) {
+            this.listeners[type] = [];
+        }
+    },
+
+    /**
+     * APIMethod: triggerEvent
+     * Trigger a specified registered event.  
+     * 
+     * Parameters:
+     * type - {String} 
+     * evt - {Event || Object} will be passed to the listeners.
+     *
+     * Returns:
+     * {Boolean} The last listener return.  If a listener returns false, the
+     *     chain of listeners will stop getting called.
+     */
+    triggerEvent: function (type, evt) {
+        var listeners = this.listeners[type];
+
+        // fast path
+        if(!listeners || listeners.length == 0) {
+            return undefined;
+        }
+
+        // prep evt object with object & div references
+        if (evt == null) {
+            evt = {};
+        }
+        evt.object = this.object;
+        evt.element = this.element;
+        if(!evt.type) {
+            evt.type = type;
+        }
+    
+        // execute all callbacks registered for specified type
+        // get a clone of the listeners array to
+        // allow for splicing during callbacks
+        listeners = listeners.slice();
+        var continueChain;
+        for (var i=0, len=listeners.length; i<len; i++) {
+            var callback = listeners[i];
+            // bind the context to callback.obj
+            continueChain = callback.func.apply(callback.obj, [evt]);
+
+            if ((continueChain != undefined) && (continueChain == false)) {
+                // if callback returns false, execute no more callbacks.
+                break;
+            }
+        }
+        // don't fall through to other DOM elements
+        if (!this.fallThrough) {           
+            OpenLayers.Event.stop(evt, true);
+        }
+        return continueChain;
+    },
+
+    /**
+     * Method: handleBrowserEvent
+     * Basically just a wrapper to the triggerEvent() function, but takes 
+     *     care to set a property 'xy' on the event with the current mouse 
+     *     position.
+     *
+     * Parameters:
+     * evt - {Event} 
+     */
+    handleBrowserEvent: function (evt) {
+        var type = evt.type, listeners = this.listeners[type];
+        if(!listeners || listeners.length == 0) {
+            // noone's listening, bail out
+            return;
+        }
+        // add clientX & clientY to all events - corresponds to average x, y
+        var touches = evt.touches;
+        if (touches && touches[0]) {
+            var x = 0;
+            var y = 0;
+            var num = touches.length;
+            var touch;
+            for (var i=0; i<num; ++i) {
+                touch = this.getTouchClientXY(touches[i]);
+                x += touch.clientX;
+                y += touch.clientY;
+            }
+            evt.clientX = x / num;
+            evt.clientY = y / num;
+        }
+        if (this.includeXY) {
+            evt.xy = this.getMousePosition(evt);
+        } 
+        this.triggerEvent(type, evt);
+    },
+    
+    /**
+     * Method: getTouchClientXY
+     * WebKit has a few bugs for clientX/clientY. This method detects them
+     * and calculate the correct values.
+     *
+     * Parameters:
+     * evt - {Touch} a Touch object from a TouchEvent
+     * 
+     * Returns:
+     * {Object} An object with only clientX and clientY properties with the
+     * calculated values.
+     */
+    getTouchClientXY: function (evt) {
+        // olMochWin is to override window, used for testing
+        var win = window.olMockWin || window,
+            winPageX = win.pageXOffset,
+            winPageY = win.pageYOffset,
+            x = evt.clientX,
+            y = evt.clientY;
+        
+        if (evt.pageY === 0 && Math.floor(y) > Math.floor(evt.pageY) ||
+            evt.pageX === 0 && Math.floor(x) > Math.floor(evt.pageX)) {
+            // iOS4 include scroll offset in clientX/Y
+            x = x - winPageX;
+            y = y - winPageY;
+        } else if (y < (evt.pageY - winPageY) || x < (evt.pageX - winPageX) ) {
+            // Some Android browsers have totally bogus values for clientX/Y
+            // when scrolling/zooming a page
+            x = evt.pageX - winPageX;
+            y = evt.pageY - winPageY;
+        }
+        
+        evt.olClientX = x;
+        evt.olClientY = y;
+        
+        return {
+            clientX: x,
+            clientY: y
+        };
+    },
+    
+    /**
+     * APIMethod: clearMouseCache
+     * Clear cached data about the mouse position. This should be called any 
+     *     time the element that events are registered on changes position 
+     *     within the page.
+     */
+    clearMouseCache: function() { 
+        this.element.scrolls = null;
+        this.element.lefttop = null;
+        this.element.offsets = null;
+    },      
+
+    /**
+     * Method: getMousePosition
+     * 
+     * Parameters:
+     * evt - {Event} 
+     * 
+     * Returns:
+     * {<OpenLayers.Pixel>} The current xy coordinate of the mouse, adjusted
+     *                      for offsets
+     */
+    getMousePosition: function (evt) {
+        if (!this.includeXY) {
+            this.clearMouseCache();
+        } else if (!this.element.hasScrollEvent) {
+            OpenLayers.Event.observe(window, "scroll", this.clearMouseListener);
+            this.element.hasScrollEvent = true;
+        }
+        
+        if (!this.element.scrolls) {
+            var viewportElement = OpenLayers.Util.getViewportElement();
+            this.element.scrolls = [
+                window.pageXOffset || viewportElement.scrollLeft,
+                window.pageYOffset || viewportElement.scrollTop
+            ];
+        }
+
+        if (!this.element.lefttop) {
+            this.element.lefttop = [
+                (document.documentElement.clientLeft || 0),
+                (document.documentElement.clientTop  || 0)
+            ];
+        }
+        
+        if (!this.element.offsets) {
+            this.element.offsets = OpenLayers.Util.pagePosition(this.element);
+        }
+
+        return new OpenLayers.Pixel(
+            (evt.clientX + this.element.scrolls[0]) - this.element.offsets[0]
+                         - this.element.lefttop[0], 
+            (evt.clientY + this.element.scrolls[1]) - this.element.offsets[1]
+                         - this.element.lefttop[1]
+        ); 
+    },
+
+    /**
+     * Method: getTouchModel
+     * Get the touch model currently in use.
+     * 
+     * This is cached on OpenLayers.Events as _TOUCH_MODEL 
+     * 
+     * Returns:
+     * {string} The current touch model (TOUCH_MODEL_xxx), null if none
+     */
+    getTouchModel: function() {
+        if (!("_TOUCH_MODEL" in OpenLayers.Events)) {
+            OpenLayers.Events._TOUCH_MODEL =
+                    (window.PointerEvent && "pointer") ||
+                    (window.MSPointerEvent && "MSPointer") ||
+                    (("ontouchdown" in document) && "touch") ||
+                    null;
+        }
+        return OpenLayers.Events._TOUCH_MODEL;
+    },
+
+    /**
+     * Method: addPointerTouchListener
+     *
+     * Parameters:
+     * element - {DOMElement} The DOM element to register the listener on
+     * type - {String} The event type
+     * handler - {Function} the handler
+     */
+    addPointerTouchListener: function (element, type, handler) {
+        var eventHandler = this.eventHandler;
+        var touches = this._pointerTouches;
+
+        function pointerHandler(evt) {
+            handler(OpenLayers.Util.applyDefaults({
+                stopPropagation: function() {
+                    for (var i=touches.length-1; i>=0; --i) {
+                        touches[i].stopPropagation();
+                    }
+                },
+                preventDefault: function() {
+                    for (var i=touches.length-1; i>=0; --i) {
+                        touches[i].preventDefault();
+                    }
+                },
+                type: type
+            }, evt));
+        }
+
+        switch (type) {
+            case 'touchstart':
+                return this.addPointerTouchListenerStart(element, type, pointerHandler);
+            case 'touchend':
+                return this.addPointerTouchListenerEnd(element, type, pointerHandler);
+            case 'touchmove':
+                return this.addPointerTouchListenerMove(element, type, pointerHandler);
+            default:
+                throw 'Unknown touch event type';
+        }
+    },
+
+    /**
+     * Method: addPointerTouchListenerStart
+     *
+     * Parameters:
+     * element - {DOMElement} The DOM element to register the listener on
+     * type - {String} The event type
+     * handler - {Function} the handler
+     */
+    addPointerTouchListenerStart: function(element, type, handler) {
+        var touches = this._pointerTouches;
+
+        var cb = function(e) {
+
+            // pointer could be mouse or pen
+            if (!OpenLayers.Event.isTouchEvent(e)) {
+                return;
+            }
+
+            var alreadyInArray = false;
+            for (var i=0, ii=touches.length; i<ii; ++i) {
+                if (touches[i].pointerId == e.pointerId) {
+                    alreadyInArray = true;
+                    break;
+                }
+            }
+            if (!alreadyInArray) {
+                touches.push(e);
+            }
+
+            e.touches = touches.slice();
+            handler(e);
+        };
+
+        OpenLayers.Event.observe(element,
+                this.getTouchModel() === this.TOUCH_MODEL_MSPOINTER ?
+                        'MSPointerDown' : 'pointerdown',
+                cb);
+        
+        // the pointerId only needs to be removed from the _pointerTouches array
+        // when the pointer has left its element
+        var internalCb = function (e) {
+
+            // pointer could be mouse or pen
+            if (!OpenLayers.Event.isTouchEvent(e)) {
+            	return;
+            }
+
+            var up = false;
+            for (var i = 0, ii = touches.length; i < ii; ++i) {
+                if (touches[i].pointerId == e.pointerId) {
+                    if (this.clientWidth != 0 && this.clientHeight != 0) {
+                        if ((Math.ceil(e.clientX) >= this.clientWidth || Math.ceil(e.clientY) >= this.clientHeight)) {
+                            touches.splice(i, 1);
+                        }
+                    }
+                    break;
+                }
+            }
+        };
+        OpenLayers.Event.observe(element,
+                this.getTouchModel() === this.TOUCH_MODEL_MSPOINTER ?
+                        'MSPointerOut' : 'pointerout',
+                internalCb);
+    },
+
+    /**
+     * Method: addPointerTouchListenerMove
+     *
+     * Parameters:
+     * element - {DOMElement} The DOM element to register the listener on
+     * type - {String} The event type
+     * handler - {Function} the handler
+     */
+    addPointerTouchListenerMove: function (element, type, handler) {
+        var touches = this._pointerTouches;
+        var cb = function(e) {
+
+            // pointer could be mouse or pen
+            if (!OpenLayers.Event.isTouchEvent(e)) {
+                return;
+            }
+
+            if (touches.length == 1 && touches[0].pageX == e.pageX &&
+                    touches[0].pageY == e.pageY) {
+                // don't trigger event when pointer has not moved
+                return;
+            }
+            for (var i=0, ii=touches.length; i<ii; ++i) {
+                if (touches[i].pointerId == e.pointerId) {
+                    touches[i] = e;
+                    break;
+                }
+            }
+
+            e.touches = touches.slice();
+            handler(e);
+        };
+
+        OpenLayers.Event.observe(element,
+                this.getTouchModel() === this.TOUCH_MODEL_MSPOINTER ?
+                        'MSPointerMove' : 'pointermove',
+                cb);
+    },
+
+    /**
+     * Method: addPointerTouchListenerEnd
+     *
+     * Parameters:
+     * element - {DOMElement} The DOM element to register the listener on
+     * type - {String} The event type
+     * handler - {Function} the handler
+     */
+    addPointerTouchListenerEnd: function (element, type, handler) {
+        var touches = this._pointerTouches;
+
+        var cb = function(e) {
+
+            // pointer could be mouse or pen
+            if (!OpenLayers.Event.isTouchEvent(e)) {
+            	return;
+            }
+
+            for (var i=0, ii=touches.length; i<ii; ++i) {
+                if (touches[i].pointerId == e.pointerId) {
+                    touches.splice(i, 1);
+                    break;
+                }
+            }
+            
+            e.touches = touches.slice();
+            handler(e);
+        };
+
+        OpenLayers.Event.observe(element,
+                this.getTouchModel() === this.TOUCH_MODEL_MSPOINTER ?
+                        'MSPointerUp' : 'pointerup',
+                cb);
+    },
+
+    CLASS_NAME: "OpenLayers.Events"
+});
+/* ======================================================================
+    OpenLayers/Request.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Events.js
+ * @requires OpenLayers/Request/XMLHttpRequest.js
+ */
+
+/**
+ * TODO: deprecate me
+ * Use OpenLayers.Request.proxy instead.
+ */
+OpenLayers.ProxyHost = "";
+
+/**
+ * Namespace: OpenLayers.Request
+ * The OpenLayers.Request namespace contains convenience methods for working
+ *     with XMLHttpRequests.  These methods work with a cross-browser
+ *     W3C compliant <OpenLayers.Request.XMLHttpRequest> class.
+ */
+if (!OpenLayers.Request) {
+    /**
+     * This allows for OpenLayers/Request/XMLHttpRequest.js to be included
+     * before or after this script.
+     */
+    OpenLayers.Request = {};
+}
+OpenLayers.Util.extend(OpenLayers.Request, {
+    
+    /**
+     * Constant: DEFAULT_CONFIG
+     * {Object} Default configuration for all requests.
+     */
+    DEFAULT_CONFIG: {
+        method: "GET",
+        url: window.location.href,
+        async: true,
+        user: undefined,
+        password: undefined,
+        params: null,
+        proxy: OpenLayers.ProxyHost,
+        headers: {},
+        data: null,
+        callback: function() {},
+        success: null,
+        failure: null,
+        scope: null
+    },
+    
+    /**
+     * Constant: URL_SPLIT_REGEX
+     */
+    URL_SPLIT_REGEX: /([^:]*:)\/\/([^:]*:?[^@]*@)?([^:\/\?]*):?([^\/\?]*)/,
+    
+    /**
+     * APIProperty: events
+     * {<OpenLayers.Events>} An events object that handles all 
+     *     events on the {<OpenLayers.Request>} object.
+     *
+     * All event listeners will receive an event object with three properties:
+     * request - {<OpenLayers.Request.XMLHttpRequest>} The request object.
+     * config - {Object} The config object sent to the specific request method.
+     * requestUrl - {String} The request url.
+     * 
+     * Supported event types:
+     * complete - Triggered when we have a response from the request, if a
+     *     listener returns false, no further response processing will take
+     *     place.
+     * success - Triggered when the HTTP response has a success code (200-299).
+     * failure - Triggered when the HTTP response does not have a success code.
+     */
+    events: new OpenLayers.Events(this),
+    
+    /**
+     * Method: makeSameOrigin
+     * Using the specified proxy, returns a same origin url of the provided url.
+     *
+     * Parameters:
+     * url - {String} An arbitrary url
+     * proxy {String|Function} The proxy to use to make the provided url a
+     *     same origin url.
+     *
+     * Returns
+     * {String} the same origin url. If no proxy is provided, the returned url
+     *     will be the same as the provided url.
+     */
+    makeSameOrigin: function(url, proxy) {
+        var sameOrigin = url.indexOf("http") !== 0;
+        var urlParts = !sameOrigin && url.match(this.URL_SPLIT_REGEX);
+        if (urlParts) {
+            var location = window.location;
+            sameOrigin =
+                urlParts[1] == location.protocol &&
+                urlParts[3] == location.hostname;
+            var uPort = urlParts[4], lPort = location.port;
+            if (uPort != 80 && uPort != "" || lPort != "80" && lPort != "") {
+                sameOrigin = sameOrigin && uPort == lPort;
+            }
+        }
+        if (!sameOrigin) {
+            if (proxy) {
+                if (typeof proxy == "function") {
+                    url = proxy(url);
+                } else {
+                    url = proxy + encodeURIComponent(url);
+                }
+            }
+        }
+        return url;
+    },
+
+    /**
+     * APIMethod: issue
+     * Create a new XMLHttpRequest object, open it, set any headers, bind
+     *     a callback to done state, and send any data.  It is recommended that
+     *     you use one <GET>, <POST>, <PUT>, <DELETE>, <OPTIONS>, or <HEAD>.
+     *     This method is only documented to provide detail on the configuration
+     *     options available to all request methods.
+     *
+     * Parameters:
+     * config - {Object} Object containing properties for configuring the
+     *     request.  Allowed configuration properties are described below.
+     *     This object is modified and should not be reused.
+     *
+     * Allowed config properties:
+     * method - {String} One of GET, POST, PUT, DELETE, HEAD, or
+     *     OPTIONS.  Default is GET.
+     * url - {String} URL for the request.
+     * async - {Boolean} Open an asynchronous request.  Default is true.
+     * user - {String} User for relevant authentication scheme.  Set
+     *     to null to clear current user.
+     * password - {String} Password for relevant authentication scheme.
+     *     Set to null to clear current password.
+     * proxy - {String} Optional proxy.  Defaults to
+     *     <OpenLayers.ProxyHost>.
+     * params - {Object} Any key:value pairs to be appended to the
+     *     url as a query string.  Assumes url doesn't already include a query
+     *     string or hash.  Typically, this is only appropriate for <GET>
+     *     requests where the query string will be appended to the url.
+     *     Parameter values that are arrays will be
+     *     concatenated with a comma (note that this goes against form-encoding)
+     *     as is done with <OpenLayers.Util.getParameterString>.
+     * headers - {Object} Object with header:value pairs to be set on
+     *     the request.
+     * data - {String | Document} Optional data to send with the request.
+     *     Typically, this is only used with <POST> and <PUT> requests.
+     *     Make sure to provide the appropriate "Content-Type" header for your
+     *     data.  For <POST> and <PUT> requests, the content type defaults to
+     *     "application-xml".  If your data is a different content type, or
+     *     if you are using a different HTTP method, set the "Content-Type"
+     *     header to match your data type.
+     * callback - {Function} Function to call when request is done.
+     *     To determine if the request failed, check request.status (200
+     *     indicates success).
+     * success - {Function} Optional function to call if request status is in
+     *     the 200s.  This will be called in addition to callback above and
+     *     would typically only be used as an alternative.
+     * failure - {Function} Optional function to call if request status is not
+     *     in the 200s.  This will be called in addition to callback above and
+     *     would typically only be used as an alternative.
+     * scope - {Object} If callback is a public method on some object,
+     *     set the scope to that object.
+     *
+     * Returns:
+     * {XMLHttpRequest} Request object.  To abort the request before a response
+     *     is received, call abort() on the request object.
+     */
+    issue: function(config) {        
+        // apply default config - proxy host may have changed
+        var defaultConfig = OpenLayers.Util.extend(
+            this.DEFAULT_CONFIG,
+            {proxy: OpenLayers.ProxyHost}
+        );
+        config = config || {};
+        config.headers = config.headers || {};
+        config = OpenLayers.Util.applyDefaults(config, defaultConfig);
+        config.headers = OpenLayers.Util.applyDefaults(config.headers, defaultConfig.headers);
+        // Always set the "X-Requested-With" header to signal that this request
+        // was issued through the XHR-object. Since header keys are case 
+        // insensitive and we want to allow overriding of the "X-Requested-With"
+        // header through the user we cannot use applyDefaults, but have to 
+        // check manually whether we were called with a "X-Requested-With"
+        // header.
+        var customRequestedWithHeader = false,
+            headerKey;
+        for(headerKey in config.headers) {
+            if (config.headers.hasOwnProperty( headerKey )) {
+                if (headerKey.toLowerCase() === 'x-requested-with') {
+                    customRequestedWithHeader = true;
+                }
+            }
+        }
+        if (customRequestedWithHeader === false) {
+            // we did not have a custom "X-Requested-With" header
+            config.headers['X-Requested-With'] = 'XMLHttpRequest';
+        }
+
+        // create request, open, and set headers
+        var request = new OpenLayers.Request.XMLHttpRequest();
+        var url = OpenLayers.Util.urlAppend(config.url, 
+            OpenLayers.Util.getParameterString(config.params || {}));
+        url = OpenLayers.Request.makeSameOrigin(url, config.proxy);
+        request.open(
+            config.method, url, config.async, config.user, config.password
+        );
+        for(var header in config.headers) {
+            request.setRequestHeader(header, config.headers[header]);
+        }
+
+        var events = this.events;
+
+        // we want to execute runCallbacks with "this" as the
+        // execution scope
+        var self = this;
+        
+        request.onreadystatechange = function() {
+            if(request.readyState == OpenLayers.Request.XMLHttpRequest.DONE) {
+                var proceed = events.triggerEvent(
+                    "complete",
+                    {request: request, config: config, requestUrl: url}
+                );
+                if(proceed !== false) {
+                    self.runCallbacks(
+                        {request: request, config: config, requestUrl: url}
+                    );
+                }
+            }
+        };
+        
+        // send request (optionally with data) and return
+        // call in a timeout for asynchronous requests so the return is
+        // available before readyState == 4 for cached docs
+        if(config.async === false) {
+            request.send(config.data);
+        } else {
+            window.setTimeout(function(){
+                if (request.readyState !== 0) { // W3C: 0-UNSENT
+                    request.send(config.data);
+                }
+            }, 0);
+        }
+        return request;
+    },
+    
+    /**
+     * Method: runCallbacks
+     * Calls the complete, success and failure callbacks. Application
+     *    can listen to the "complete" event, have the listener 
+     *    display a confirm window and always return false, and
+     *    execute OpenLayers.Request.runCallbacks if the user
+     *    hits "yes" in the confirm window.
+     *
+     * Parameters:
+     * options - {Object} Hash containing request, config and requestUrl keys
+     */
+    runCallbacks: function(options) {
+        var request = options.request;
+        var config = options.config;
+        
+        // bind callbacks to readyState 4 (done)
+        var complete = (config.scope) ?
+            OpenLayers.Function.bind(config.callback, config.scope) :
+            config.callback;
+        
+        // optional success callback
+        var success;
+        if(config.success) {
+            success = (config.scope) ?
+                OpenLayers.Function.bind(config.success, config.scope) :
+                config.success;
+        }
+
+        // optional failure callback
+        var failure;
+        if(config.failure) {
+            failure = (config.scope) ?
+                OpenLayers.Function.bind(config.failure, config.scope) :
+                config.failure;
+        }
+
+        if (OpenLayers.Util.createUrlObject(config.url).protocol == "file:" &&
+                                                        request.responseText) {
+            request.status = 200;
+        }
+        complete(request);
+
+        if (!request.status || (request.status >= 200 && request.status < 300)) {
+            this.events.triggerEvent("success", options);
+            if(success) {
+                success(request);
+            }
+        }
+        if(request.status && (request.status < 200 || request.status >= 300)) {                    
+            this.events.triggerEvent("failure", options);
+            if(failure) {
+                failure(request);
+            }
+        }
+    },
+    
+    /**
+     * APIMethod: GET
+     * Send an HTTP GET request.  Additional configuration properties are
+     *     documented in the <issue> method, with the method property set
+     *     to GET.
+     *
+     * Parameters:
+     * config - {Object} Object with properties for configuring the request.
+     *     See the <issue> method for documentation of allowed properties.
+     *     This object is modified and should not be reused.
+     * 
+     * Returns:
+     * {XMLHttpRequest} Request object.
+     */
+    GET: function(config) {
+        config = OpenLayers.Util.extend(config, {method: "GET"});
+        return OpenLayers.Request.issue(config);
+    },
+    
+    /**
+     * APIMethod: POST
+     * Send a POST request.  Additional configuration properties are
+     *     documented in the <issue> method, with the method property set
+     *     to POST and "Content-Type" header set to "application/xml".
+     *
+     * Parameters:
+     * config - {Object} Object with properties for configuring the request.
+     *     See the <issue> method for documentation of allowed properties.  The
+     *     default "Content-Type" header will be set to "application-xml" if
+     *     none is provided.  This object is modified and should not be reused.
+     * 
+     * Returns:
+     * {XMLHttpRequest} Request object.
+     */
+    POST: function(config) {
+        config = OpenLayers.Util.extend(config, {method: "POST"});
+        // set content type to application/xml if it isn't already set
+        config.headers = config.headers ? config.headers : {};
+        if(!("CONTENT-TYPE" in OpenLayers.Util.upperCaseObject(config.headers))) {
+            config.headers["Content-Type"] = "application/xml";
+        }
+        return OpenLayers.Request.issue(config);
+    },
+    
+    /**
+     * APIMethod: PUT
+     * Send an HTTP PUT request.  Additional configuration properties are
+     *     documented in the <issue> method, with the method property set
+     *     to PUT and "Content-Type" header set to "application/xml".
+     *
+     * Parameters:
+     * config - {Object} Object with properties for configuring the request.
+     *     See the <issue> method for documentation of allowed properties.  The
+     *     default "Content-Type" header will be set to "application-xml" if
+     *     none is provided.  This object is modified and should not be reused.
+     * 
+     * Returns:
+     * {XMLHttpRequest} Request object.
+     */
+    PUT: function(config) {
+        config = OpenLayers.Util.extend(config, {method: "PUT"});
+        // set content type to application/xml if it isn't already set
+        config.headers = config.headers ? config.headers : {};
+        if(!("CONTENT-TYPE" in OpenLayers.Util.upperCaseObject(config.headers))) {
+            config.headers["Content-Type"] = "application/xml";
+        }
+        return OpenLayers.Request.issue(config);
+    },
+    
+    /**
+     * APIMethod: DELETE
+     * Send an HTTP DELETE request.  Additional configuration properties are
+     *     documented in the <issue> method, with the method property set
+     *     to DELETE.
+     *
+     * Parameters:
+     * config - {Object} Object with properties for configuring the request.
+     *     See the <issue> method for documentation of allowed properties.
+     *     This object is modified and should not be reused.
+     * 
+     * Returns:
+     * {XMLHttpRequest} Request object.
+     */
+    DELETE: function(config) {
+        config = OpenLayers.Util.extend(config, {method: "DELETE"});
+        return OpenLayers.Request.issue(config);
+    },
+  
+    /**
+     * APIMethod: HEAD
+     * Send an HTTP HEAD request.  Additional configuration properties are
+     *     documented in the <issue> method, with the method property set
+     *     to HEAD.
+     *
+     * Parameters:
+     * config - {Object} Object with properties for configuring the request.
+     *     See the <issue> method for documentation of allowed properties.
+     *     This object is modified and should not be reused.
+     * 
+     * Returns:
+     * {XMLHttpRequest} Request object.
+     */
+    HEAD: function(config) {
+        config = OpenLayers.Util.extend(config, {method: "HEAD"});
+        return OpenLayers.Request.issue(config);
+    },
+    
+    /**
+     * APIMethod: OPTIONS
+     * Send an HTTP OPTIONS request.  Additional configuration properties are
+     *     documented in the <issue> method, with the method property set
+     *     to OPTIONS.
+     *
+     * Parameters:
+     * config - {Object} Object with properties for configuring the request.
+     *     See the <issue> method for documentation of allowed properties.
+     *     This object is modified and should not be reused.
+     * 
+     * Returns:
+     * {XMLHttpRequest} Request object.
+     */
+    OPTIONS: function(config) {
+        config = OpenLayers.Util.extend(config, {method: "OPTIONS"});
+        return OpenLayers.Request.issue(config);
+    }
+
+});
+/* ======================================================================
+    OpenLayers/Request/XMLHttpRequest.js
+   ====================================================================== */
+
+// XMLHttpRequest.js Copyright (C) 2010 Sergey Ilinsky (http://www.ilinsky.com)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * @requires OpenLayers/Request.js
+ */
+
+(function () {
+
+    // Save reference to earlier defined object implementation (if any)
+    var oXMLHttpRequest    = window.XMLHttpRequest;
+
+    // Define on browser type
+    var bGecko    = !!window.controllers,
+        bIE        = window.document.all && !window.opera,
+        bIE7    = bIE && window.navigator.userAgent.match(/MSIE 7.0/);
+
+    // Enables "XMLHttpRequest()" call next to "new XMLHttpReques()"
+    function fXMLHttpRequest() {
+        this._object    = oXMLHttpRequest && !bIE7 ? new oXMLHttpRequest : new window.ActiveXObject("Microsoft.XMLHTTP");
+        this._listeners    = [];
+    };
+
+    // Constructor
+    function cXMLHttpRequest() {
+        return new fXMLHttpRequest;
+    };
+    cXMLHttpRequest.prototype    = fXMLHttpRequest.prototype;
+
+    // BUGFIX: Firefox with Firebug installed would break pages if not executed
+    if (bGecko && oXMLHttpRequest.wrapped)
+        cXMLHttpRequest.wrapped    = oXMLHttpRequest.wrapped;
+
+    // Constants
+    cXMLHttpRequest.UNSENT                = 0;
+    cXMLHttpRequest.OPENED                = 1;
+    cXMLHttpRequest.HEADERS_RECEIVED    = 2;
+    cXMLHttpRequest.LOADING                = 3;
+    cXMLHttpRequest.DONE                = 4;
+
+    // Public Properties
+    cXMLHttpRequest.prototype.readyState    = cXMLHttpRequest.UNSENT;
+    cXMLHttpRequest.prototype.responseText    = '';
+    cXMLHttpRequest.prototype.responseXML    = null;
+    cXMLHttpRequest.prototype.status        = 0;
+    cXMLHttpRequest.prototype.statusText    = '';
+
+    // Priority proposal
+    cXMLHttpRequest.prototype.priority        = "NORMAL";
+
+    // Instance-level Events Handlers
+    cXMLHttpRequest.prototype.onreadystatechange    = null;
+
+    // Class-level Events Handlers
+    cXMLHttpRequest.onreadystatechange    = null;
+    cXMLHttpRequest.onopen                = null;
+    cXMLHttpRequest.onsend                = null;
+    cXMLHttpRequest.onabort                = null;
+
+    // Public Methods
+    cXMLHttpRequest.prototype.open    = function(sMethod, sUrl, bAsync, sUser, sPassword) {
+        // Delete headers, required when object is reused
+        delete this._headers;
+
+        // When bAsync parameter value is omitted, use true as default
+        if (arguments.length < 3)
+            bAsync    = true;
+
+        // Save async parameter for fixing Gecko bug with missing readystatechange in synchronous requests
+        this._async        = bAsync;
+
+        // Set the onreadystatechange handler
+        var oRequest    = this,
+            nState        = this.readyState,
+            fOnUnload;
+
+        // BUGFIX: IE - memory leak on page unload (inter-page leak)
+        if (bIE && bAsync) {
+            fOnUnload = function() {
+                if (nState != cXMLHttpRequest.DONE) {
+                    fCleanTransport(oRequest);
+                    // Safe to abort here since onreadystatechange handler removed
+                    oRequest.abort();
+                }
+            };
+            window.attachEvent("onunload", fOnUnload);
+        }
+
+        // Add method sniffer
+        if (cXMLHttpRequest.onopen)
+            cXMLHttpRequest.onopen.apply(this, arguments);
+
+        if (arguments.length > 4)
+            this._object.open(sMethod, sUrl, bAsync, sUser, sPassword);
+        else
+        if (arguments.length > 3)
+            this._object.open(sMethod, sUrl, bAsync, sUser);
+        else
+            this._object.open(sMethod, sUrl, bAsync);
+
+        this.readyState    = cXMLHttpRequest.OPENED;
+        fReadyStateChange(this);
+
+        this._object.onreadystatechange    = function() {
+            if (bGecko && !bAsync)
+                return;
+
+            // Synchronize state
+            oRequest.readyState        = oRequest._object.readyState;
+
+            //
+            fSynchronizeValues(oRequest);
+
+            // BUGFIX: Firefox fires unnecessary DONE when aborting
+            if (oRequest._aborted) {
+                // Reset readyState to UNSENT
+                oRequest.readyState    = cXMLHttpRequest.UNSENT;
+
+                // Return now
+                return;
+            }
+
+            if (oRequest.readyState == cXMLHttpRequest.DONE) {
+                // Free up queue
+                delete oRequest._data;
+/*                if (bAsync)
+                    fQueue_remove(oRequest);*/
+                //
+                fCleanTransport(oRequest);
+// Uncomment this block if you need a fix for IE cache
+/*
+                // BUGFIX: IE - cache issue
+                if (!oRequest._object.getResponseHeader("Date")) {
+                    // Save object to cache
+                    oRequest._cached    = oRequest._object;
+
+                    // Instantiate a new transport object
+                    cXMLHttpRequest.call(oRequest);
+
+                    // Re-send request
+                    if (sUser) {
+                         if (sPassword)
+                            oRequest._object.open(sMethod, sUrl, bAsync, sUser, sPassword);
+                        else
+                            oRequest._object.open(sMethod, sUrl, bAsync, sUser);
+                    }
+                    else
+                        oRequest._object.open(sMethod, sUrl, bAsync);
+                    oRequest._object.setRequestHeader("If-Modified-Since", oRequest._cached.getResponseHeader("Last-Modified") || new window.Date(0));
+                    // Copy headers set
+                    if (oRequest._headers)
+                        for (var sHeader in oRequest._headers)
+                            if (typeof oRequest._headers[sHeader] == "string")    // Some frameworks prototype objects with functions
+                                oRequest._object.setRequestHeader(sHeader, oRequest._headers[sHeader]);
+
+                    oRequest._object.onreadystatechange    = function() {
+                        // Synchronize state
+                        oRequest.readyState        = oRequest._object.readyState;
+
+                        if (oRequest._aborted) {
+                            //
+                            oRequest.readyState    = cXMLHttpRequest.UNSENT;
+
+                            // Return
+                            return;
+                        }
+
+                        if (oRequest.readyState == cXMLHttpRequest.DONE) {
+                            // Clean Object
+                            fCleanTransport(oRequest);
+
+                            // get cached request
+                            if (oRequest.status == 304)
+                                oRequest._object    = oRequest._cached;
+
+                            //
+                            delete oRequest._cached;
+
+                            //
+                            fSynchronizeValues(oRequest);
+
+                            //
+                            fReadyStateChange(oRequest);
+
+                            // BUGFIX: IE - memory leak in interrupted
+                            if (bIE && bAsync)
+                                window.detachEvent("onunload", fOnUnload);
+                        }
+                    };
+                    oRequest._object.send(null);
+
+                    // Return now - wait until re-sent request is finished
+                    return;
+                };
+*/
+                // BUGFIX: IE - memory leak in interrupted
+                if (bIE && bAsync)
+                    window.detachEvent("onunload", fOnUnload);
+            }
+
+            // BUGFIX: Some browsers (Internet Explorer, Gecko) fire OPEN readystate twice
+            if (nState != oRequest.readyState)
+                fReadyStateChange(oRequest);
+
+            nState    = oRequest.readyState;
+        }
+    };
+    function fXMLHttpRequest_send(oRequest) {
+        oRequest._object.send(oRequest._data);
+
+        // BUGFIX: Gecko - missing readystatechange calls in synchronous requests
+        if (bGecko && !oRequest._async) {
+            oRequest.readyState    = cXMLHttpRequest.OPENED;
+
+            // Synchronize state
+            fSynchronizeValues(oRequest);
+
+            // Simulate missing states
+            while (oRequest.readyState < cXMLHttpRequest.DONE) {
+                oRequest.readyState++;
+                fReadyStateChange(oRequest);
+                // Check if we are aborted
+                if (oRequest._aborted)
+                    return;
+            }
+        }
+    };
+    cXMLHttpRequest.prototype.send    = function(vData) {
+        // Add method sniffer
+        if (cXMLHttpRequest.onsend)
+            cXMLHttpRequest.onsend.apply(this, arguments);
+
+        if (!arguments.length)
+            vData    = null;
+
+        // BUGFIX: Safari - fails sending documents created/modified dynamically, so an explicit serialization required
+        // BUGFIX: IE - rewrites any custom mime-type to "text/xml" in case an XMLNode is sent
+        // BUGFIX: Gecko - fails sending Element (this is up to the implementation either to standard)
+        if (vData && vData.nodeType) {
+            vData    = window.XMLSerializer ? new window.XMLSerializer().serializeToString(vData) : vData.xml;
+            if (!this._headers["Content-Type"])
+                this._object.setRequestHeader("Content-Type", "application/xml");
+        }
+
+        this._data    = vData;
+/*
+        // Add to queue
+        if (this._async)
+            fQueue_add(this);
+        else*/
+            fXMLHttpRequest_send(this);
+    };
+    cXMLHttpRequest.prototype.abort    = function() {
+        // Add method sniffer
+        if (cXMLHttpRequest.onabort)
+            cXMLHttpRequest.onabort.apply(this, arguments);
+
+        // BUGFIX: Gecko - unnecessary DONE when aborting
+        if (this.readyState > cXMLHttpRequest.UNSENT)
+            this._aborted    = true;
+
+        this._object.abort();
+
+        // BUGFIX: IE - memory leak
+        fCleanTransport(this);
+
+        this.readyState    = cXMLHttpRequest.UNSENT;
+
+        delete this._data;
+/*        if (this._async)
+            fQueue_remove(this);*/
+    };
+    cXMLHttpRequest.prototype.getAllResponseHeaders    = function() {
+        return this._object.getAllResponseHeaders();
+    };
+    cXMLHttpRequest.prototype.getResponseHeader    = function(sName) {
+        return this._object.getResponseHeader(sName);
+    };
+    cXMLHttpRequest.prototype.setRequestHeader    = function(sName, sValue) {
+        // BUGFIX: IE - cache issue
+        if (!this._headers)
+            this._headers    = {};
+        this._headers[sName]    = sValue;
+
+        return this._object.setRequestHeader(sName, sValue);
+    };
+
+    // EventTarget interface implementation
+    cXMLHttpRequest.prototype.addEventListener    = function(sName, fHandler, bUseCapture) {
+        for (var nIndex = 0, oListener; oListener = this._listeners[nIndex]; nIndex++)
+            if (oListener[0] == sName && oListener[1] == fHandler && oListener[2] == bUseCapture)
+                return;
+        // Add listener
+        this._listeners.push([sName, fHandler, bUseCapture]);
+    };
+
+    cXMLHttpRequest.prototype.removeEventListener    = function(sName, fHandler, bUseCapture) {
+        for (var nIndex = 0, oListener; oListener = this._listeners[nIndex]; nIndex++)
+            if (oListener[0] == sName && oListener[1] == fHandler && oListener[2] == bUseCapture)
+                break;
+        // Remove listener
+        if (oListener)
+            this._listeners.splice(nIndex, 1);
+    };
+
+    cXMLHttpRequest.prototype.dispatchEvent    = function(oEvent) {
+        var oEventPseudo    = {
+            'type':            oEvent.type,
+            'target':        this,
+            'currentTarget':this,
+            'eventPhase':    2,
+            'bubbles':        oEvent.bubbles,
+            'cancelable':    oEvent.cancelable,
+            'timeStamp':    oEvent.timeStamp,
+            'stopPropagation':    function() {},    // There is no flow
+            'preventDefault':    function() {},    // There is no default action
+            'initEvent':        function() {}    // Original event object should be initialized
+        };
+
+        // Execute onreadystatechange
+        if (oEventPseudo.type == "readystatechange" && this.onreadystatechange)
+            (this.onreadystatechange.handleEvent || this.onreadystatechange).apply(this, [oEventPseudo]);
+
+        // Execute listeners
+        for (var nIndex = 0, oListener; oListener = this._listeners[nIndex]; nIndex++)
+            if (oListener[0] == oEventPseudo.type && !oListener[2])
+                (oListener[1].handleEvent || oListener[1]).apply(this, [oEventPseudo]);
+    };
+
+    //
+    cXMLHttpRequest.prototype.toString    = function() {
+        return '[' + "object" + ' ' + "XMLHttpRequest" + ']';
+    };
+
+    cXMLHttpRequest.toString    = function() {
+        return '[' + "XMLHttpRequest" + ']';
+    };
+
+    // Helper function
+    function fReadyStateChange(oRequest) {
+        // Sniffing code
+        if (cXMLHttpRequest.onreadystatechange)
+            cXMLHttpRequest.onreadystatechange.apply(oRequest);
+
+        // Fake event
+        oRequest.dispatchEvent({
+            'type':            "readystatechange",
+            'bubbles':        false,
+            'cancelable':    false,
+            'timeStamp':    new Date + 0
+        });
+    };
+
+    function fGetDocument(oRequest) {
+        var oDocument    = oRequest.responseXML,
+            sResponse    = oRequest.responseText;
+        // Try parsing responseText
+        if (bIE && sResponse && oDocument && !oDocument.documentElement && oRequest.getResponseHeader("Content-Type").match(/[^\/]+\/[^\+]+\+xml/)) {
+            oDocument    = new window.ActiveXObject("Microsoft.XMLDOM");
+            oDocument.async                = false;
+            oDocument.validateOnParse    = false;
+            oDocument.loadXML(sResponse);
+        }
+        // Check if there is no error in document
+        if (oDocument)
+            if ((bIE && oDocument.parseError != 0) || !oDocument.documentElement || (oDocument.documentElement && oDocument.documentElement.tagName == "parsererror"))
+                return null;
+        return oDocument;
+    };
+
+    function fSynchronizeValues(oRequest) {
+        try {    oRequest.responseText    = oRequest._object.responseText;    } catch (e) {}
+        try {    oRequest.responseXML    = fGetDocument(oRequest._object);    } catch (e) {}
+        try {    oRequest.status            = oRequest._object.status;            } catch (e) {}
+        try {    oRequest.statusText        = oRequest._object.statusText;        } catch (e) {}
+    };
+
+    function fCleanTransport(oRequest) {
+        // BUGFIX: IE - memory leak (on-page leak)
+        oRequest._object.onreadystatechange    = new window.Function;
+    };
+/*
+    // Queue manager
+    var oQueuePending    = {"CRITICAL":[],"HIGH":[],"NORMAL":[],"LOW":[],"LOWEST":[]},
+        aQueueRunning    = [];
+    function fQueue_add(oRequest) {
+        oQueuePending[oRequest.priority in oQueuePending ? oRequest.priority : "NORMAL"].push(oRequest);
+        //
+        setTimeout(fQueue_process);
+    };
+
+    function fQueue_remove(oRequest) {
+        for (var nIndex = 0, bFound    = false; nIndex < aQueueRunning.length; nIndex++)
+            if (bFound)
+                aQueueRunning[nIndex - 1]    = aQueueRunning[nIndex];
+            else
+            if (aQueueRunning[nIndex] == oRequest)
+                bFound    = true;
+        if (bFound)
+            aQueueRunning.length--;
+        //
+        setTimeout(fQueue_process);
+    };
+
+    function fQueue_process() {
+        if (aQueueRunning.length < 6) {
+            for (var sPriority in oQueuePending) {
+                if (oQueuePending[sPriority].length) {
+                    var oRequest    = oQueuePending[sPriority][0];
+                    oQueuePending[sPriority]    = oQueuePending[sPriority].slice(1);
+                    //
+                    aQueueRunning.push(oRequest);
+                    // Send request
+                    fXMLHttpRequest_send(oRequest);
+                    break;
+                }
+            }
+        }
+    };
+*/
+    // Internet Explorer 5.0 (missing apply)
+    if (!window.Function.prototype.apply) {
+        window.Function.prototype.apply    = function(oRequest, oArguments) {
+            if (!oArguments)
+                oArguments    = [];
+            oRequest.__func    = this;
+            oRequest.__func(oArguments[0], oArguments[1], oArguments[2], oArguments[3], oArguments[4]);
+            delete oRequest.__func;
+        };
+    };
+
+    // Register new object with window
+    /**
+     * Class: OpenLayers.Request.XMLHttpRequest
+     * Standard-compliant (W3C) cross-browser implementation of the
+     *     XMLHttpRequest object.  From
+     *     http://code.google.com/p/xmlhttprequest/.
+     */
+    if (!OpenLayers.Request) {
+        /**
+         * This allows for OpenLayers/Request.js to be included
+         * before or after this script.
+         */
+        OpenLayers.Request = {};
+    }
+    OpenLayers.Request.XMLHttpRequest = cXMLHttpRequest;
+})();
+/* ======================================================================
     OpenLayers/Format/WFSCapabilities/v1_0_0.js
    ====================================================================== */
 

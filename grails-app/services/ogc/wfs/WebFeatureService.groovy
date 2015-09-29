@@ -343,7 +343,7 @@ class WebFeatureService
     def x = {
       mkp.xmlDeclaration()
       mkp.declareNamespace(
-          gml: 'gml="http://www.opengis.net/gml',
+          gml: 'http://www.opengis.net/gml',
           "${prefix}": schema.uri,
           xsd: 'http://www.w3.org/2001/XMLSchema'
       )
@@ -403,23 +403,61 @@ class WebFeatureService
 
   def describeFeatureType(DescribeFeatureTypeRequest wfsParams)
   {
-    def (namespacePrefix, layerName) = wfsParams?.typeName?.split( ':' )
+    def x = wfsParams.typeName?.split( ':' )
+    def namespacePrefix
+    def layerName
 
-    println "${namespacePrefix} ${layerName}"
+    switch ( x.size() )
+    {
+    case 1:
+      layerName = x?.last()
+      break
+    case 2:
+      (namespacePrefix, layerName) = x
+      break
+    }
+
+    def namespaceInfo
+
+    if ( wfsParams.namespace )
+    {
+      def pattern = /xmlns\(\w+=(.*)\)/
+      def matcher = wfsParams.namespace =~ pattern
+
+      if ( matcher )
+      {
+        def uri = matcher[0][1]
+
+        namespaceInfo = NamespaceInfo.findByUri( uri )
+      }
+      else
+      {
+        println "${'*' * 20} No Match ${'*' * 20}"
+      }
+
+      layerName = wfsParams?.typeName?.split( ':' )?.last()
+    }
+    else
+    {
+      namespaceInfo = NamespaceInfo.findByPrefix( namespacePrefix )
+    }
+
+    println "${namespaceInfo} ${layerName}"
 
     LayerInfo layerInfo = LayerInfo.where {
-      name == layerName && workspaceInfo.namespaceInfo.prefix == namespacePrefix
-    }.list().first()
+      name == layerName && workspaceInfo.namespaceInfo == namespaceInfo
+    }.get()
 
-    String schemaLocation = grailsLinkGenerator.link( absolute: true, uri: '/' )
+    String schemaLocation = grailsLinkGenerator.serverBaseURL
     def xml = null
 
-    Workspace.withWorkspace( layerInfo?.workspaceInfo?.workspaceParams ) { Workspace workspace ->
+    Workspace.withWorkspace( layerInfo?.workspaceInfo?.workspaceParams ) {
+      Workspace workspace ->
 
-      Schema schema = workspace[layerName].schema
-      String prefix = NamespaceInfo.findByUri( schema.uri ).prefix
+        Schema schema = workspace[layerName].schema
+        String prefix = NamespaceInfo.findByUri( schema.uri ).prefix
 
-      xml = generateSchema( schema, prefix, schemaLocation )
+        xml = generateSchema( schema, prefix, schemaLocation )
     }
 
 //    println xml
@@ -480,4 +518,5 @@ class WebFeatureService
 
     [contentType: 'text/xml', buffer: xml]
   }
+
 }
