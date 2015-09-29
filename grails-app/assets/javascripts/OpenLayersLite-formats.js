@@ -6333,6 +6333,3006 @@ OpenLayers.Format.OWSCommon.v1_1_0 = OpenLayers.Class(OpenLayers.Format.OWSCommo
 
 });
 /* ======================================================================
+    OpenLayers/Geometry.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+ 
+/**
+ * @requires OpenLayers/BaseTypes/Class.js
+ */
+
+/**
+ * Class: OpenLayers.Geometry
+ * A Geometry is a description of a geographic object.  Create an instance of
+ * this class with the <OpenLayers.Geometry> constructor.  This is a base class,
+ * typical geometry types are described by subclasses of this class.
+ *
+ * Note that if you use the <OpenLayers.Geometry.fromWKT> method, you must
+ * explicitly include the OpenLayers.Format.WKT in your build.
+ */
+OpenLayers.Geometry = OpenLayers.Class({
+
+    /**
+     * Property: id
+     * {String} A unique identifier for this geometry.
+     */
+    id: null,
+
+    /**
+     * Property: parent
+     * {<OpenLayers.Geometry>}This is set when a Geometry is added as component
+     * of another geometry
+     */
+    parent: null,
+
+    /**
+     * Property: bounds 
+     * {<OpenLayers.Bounds>} The bounds of this geometry
+     */
+    bounds: null,
+
+    /**
+     * Constructor: OpenLayers.Geometry
+     * Creates a geometry object.  
+     */
+    initialize: function() {
+        this.id = OpenLayers.Util.createUniqueID(this.CLASS_NAME+ "_");
+    },
+    
+    /**
+     * Method: destroy
+     * Destroy this geometry.
+     */
+    destroy: function() {
+        this.id = null;
+        this.bounds = null;
+    },
+    
+    /**
+     * APIMethod: clone
+     * Create a clone of this geometry.  Does not set any non-standard
+     *     properties of the cloned geometry.
+     * 
+     * Returns:
+     * {<OpenLayers.Geometry>} An exact clone of this geometry.
+     */
+    clone: function() {
+        return new OpenLayers.Geometry();
+    },
+    
+    /**
+     * Method: setBounds
+     * Set the bounds for this Geometry.
+     * 
+     * Parameters:
+     * bounds - {<OpenLayers.Bounds>} 
+     */
+    setBounds: function(bounds) {
+        if (bounds) {
+            this.bounds = bounds.clone();
+        }
+    },
+    
+    /**
+     * Method: clearBounds
+     * Nullify this components bounds and that of its parent as well.
+     */
+    clearBounds: function() {
+        this.bounds = null;
+        if (this.parent) {
+            this.parent.clearBounds();
+        }    
+    },
+    
+    /**
+     * Method: extendBounds
+     * Extend the existing bounds to include the new bounds. 
+     * If geometry's bounds is not yet set, then set a new Bounds.
+     * 
+     * Parameters:
+     * newBounds - {<OpenLayers.Bounds>} 
+     */
+    extendBounds: function(newBounds){
+        var bounds = this.getBounds();
+        if (!bounds) {
+            this.setBounds(newBounds);
+        } else {
+            this.bounds.extend(newBounds);
+        }
+    },
+    
+    /**
+     * APIMethod: getBounds
+     * Get the bounds for this Geometry. If bounds is not set, it 
+     * is calculated again, this makes queries faster.
+     * 
+     * Returns:
+     * {<OpenLayers.Bounds>}
+     */
+    getBounds: function() {
+        if (this.bounds == null) {
+            this.calculateBounds();
+        }
+        return this.bounds;
+    },
+    
+    /** 
+     * APIMethod: calculateBounds
+     * Recalculate the bounds for the geometry. 
+     */
+    calculateBounds: function() {
+        //
+        // This should be overridden by subclasses.
+        //
+    },
+    
+    /**
+     * APIMethod: distanceTo
+     * Calculate the closest distance between two geometries (on the x-y plane).
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} The target geometry.
+     * options - {Object} Optional properties for configuring the distance
+     *     calculation.
+     *
+     * Valid options depend on the specific geometry type.
+     * 
+     * Returns:
+     * {Number | Object} The distance between this geometry and the target.
+     *     If details is true, the return will be an object with distance,
+     *     x0, y0, x1, and x2 properties.  The x0 and y0 properties represent
+     *     the coordinates of the closest point on this geometry. The x1 and y1
+     *     properties represent the coordinates of the closest point on the
+     *     target geometry.
+     */
+    distanceTo: function(geometry, options) {
+    },
+    
+    /**
+     * APIMethod: getVertices
+     * Return a list of all points in this geometry.
+     *
+     * Parameters:
+     * nodes - {Boolean} For lines, only return vertices that are
+     *     endpoints.  If false, for lines, only vertices that are not
+     *     endpoints will be returned.  If not provided, all vertices will
+     *     be returned.
+     *
+     * Returns:
+     * {Array} A list of all vertices in the geometry.
+     */
+    getVertices: function(nodes) {
+    },
+
+    /**
+     * Method: atPoint
+     * Note - This is only an approximation based on the bounds of the 
+     * geometry.
+     * 
+     * Parameters:
+     * lonlat - {<OpenLayers.LonLat>|Object} OpenLayers.LonLat or an
+     *     object with a 'lon' and 'lat' properties.
+     * toleranceLon - {float} Optional tolerance in Geometric Coords
+     * toleranceLat - {float} Optional tolerance in Geographic Coords
+     * 
+     * Returns:
+     * {Boolean} Whether or not the geometry is at the specified location
+     */
+    atPoint: function(lonlat, toleranceLon, toleranceLat) {
+        var atPoint = false;
+        var bounds = this.getBounds();
+        if ((bounds != null) && (lonlat != null)) {
+
+            var dX = (toleranceLon != null) ? toleranceLon : 0;
+            var dY = (toleranceLat != null) ? toleranceLat : 0;
+    
+            var toleranceBounds = 
+                new OpenLayers.Bounds(this.bounds.left - dX,
+                                      this.bounds.bottom - dY,
+                                      this.bounds.right + dX,
+                                      this.bounds.top + dY);
+
+            atPoint = toleranceBounds.containsLonLat(lonlat);
+        }
+        return atPoint;
+    },
+    
+    /**
+     * Method: getLength
+     * Calculate the length of this geometry. This method is defined in
+     * subclasses.
+     * 
+     * Returns:
+     * {Float} The length of the collection by summing its parts
+     */
+    getLength: function() {
+        //to be overridden by geometries that actually have a length
+        //
+        return 0.0;
+    },
+
+    /**
+     * Method: getArea
+     * Calculate the area of this geometry. This method is defined in subclasses.
+     * 
+     * Returns:
+     * {Float} The area of the collection by summing its parts
+     */
+    getArea: function() {
+        //to be overridden by geometries that actually have an area
+        //
+        return 0.0;
+    },
+    
+    /**
+     * APIMethod: getCentroid
+     * Calculate the centroid of this geometry. This method is defined in subclasses.
+     *
+     * Returns:
+     * {<OpenLayers.Geometry.Point>} The centroid of the collection
+     */
+    getCentroid: function() {
+        return null;
+    },
+
+    /**
+     * Method: toString
+     * Returns a text representation of the geometry.  If the WKT format is
+     *     included in a build, this will be the Well-Known Text 
+     *     representation.
+     *
+     * Returns:
+     * {String} String representation of this geometry.
+     */
+    toString: function() {
+        var string;
+        if (OpenLayers.Format && OpenLayers.Format.WKT) {
+            string = OpenLayers.Format.WKT.prototype.write(
+                new OpenLayers.Feature.Vector(this)
+            );
+        } else {
+            string = Object.prototype.toString.call(this);
+        }
+        return string;
+    },
+
+    CLASS_NAME: "OpenLayers.Geometry"
+});
+
+/**
+ * Function: OpenLayers.Geometry.fromWKT
+ * Generate a geometry given a Well-Known Text string.  For this method to
+ *     work, you must include the OpenLayers.Format.WKT in your build 
+ *     explicitly.
+ *
+ * Parameters:
+ * wkt - {String} A string representing the geometry in Well-Known Text.
+ *
+ * Returns:
+ * {<OpenLayers.Geometry>} A geometry of the appropriate class.
+ */
+OpenLayers.Geometry.fromWKT = function(wkt) {
+    var geom;
+    if (OpenLayers.Format && OpenLayers.Format.WKT) {
+        var format = OpenLayers.Geometry.fromWKT.format;
+        if (!format) {
+            format = new OpenLayers.Format.WKT();
+            OpenLayers.Geometry.fromWKT.format = format;
+        }
+        var result = format.read(wkt);
+        if (result instanceof OpenLayers.Feature.Vector) {
+            geom = result.geometry;
+        } else if (OpenLayers.Util.isArray(result)) {
+            var len = result.length;
+            var components = new Array(len);
+            for (var i=0; i<len; ++i) {
+                components[i] = result[i].geometry;
+            }
+            geom = new OpenLayers.Geometry.Collection(components);
+        }
+    }
+    return geom;
+};
+    
+/**
+ * Method: OpenLayers.Geometry.segmentsIntersect
+ * Determine whether two line segments intersect.  Optionally calculates
+ *     and returns the intersection point.  This function is optimized for
+ *     cases where seg1.x2 >= seg2.x1 || seg2.x2 >= seg1.x1.  In those
+ *     obvious cases where there is no intersection, the function should
+ *     not be called.
+ *
+ * Parameters:
+ * seg1 - {Object} Object representing a segment with properties x1, y1, x2,
+ *     and y2.  The start point is represented by x1 and y1.  The end point
+ *     is represented by x2 and y2.  Start and end are ordered so that x1 < x2.
+ * seg2 - {Object} Object representing a segment with properties x1, y1, x2,
+ *     and y2.  The start point is represented by x1 and y1.  The end point
+ *     is represented by x2 and y2.  Start and end are ordered so that x1 < x2.
+ * options - {Object} Optional properties for calculating the intersection.
+ *
+ * Valid options:
+ * point - {Boolean} Return the intersection point.  If false, the actual
+ *     intersection point will not be calculated.  If true and the segments
+ *     intersect, the intersection point will be returned.  If true and
+ *     the segments do not intersect, false will be returned.  If true and
+ *     the segments are coincident, true will be returned.
+ * tolerance - {Number} If a non-null value is provided, if the segments are
+ *     within the tolerance distance, this will be considered an intersection.
+ *     In addition, if the point option is true and the calculated intersection
+ *     is within the tolerance distance of an end point, the endpoint will be
+ *     returned instead of the calculated intersection.  Further, if the
+ *     intersection is within the tolerance of endpoints on both segments, or
+ *     if two segment endpoints are within the tolerance distance of eachother
+ *     (but no intersection is otherwise calculated), an endpoint on the
+ *     first segment provided will be returned.
+ *
+ * Returns:
+ * {Boolean | <OpenLayers.Geometry.Point>}  The two segments intersect.
+ *     If the point argument is true, the return will be the intersection
+ *     point or false if none exists.  If point is true and the segments
+ *     are coincident, return will be true (and the instersection is equal
+ *     to the shorter segment).
+ */
+OpenLayers.Geometry.segmentsIntersect = function(seg1, seg2, options) {
+    var point = options && options.point;
+    var tolerance = options && options.tolerance;
+    var intersection = false;
+    var x11_21 = seg1.x1 - seg2.x1;
+    var y11_21 = seg1.y1 - seg2.y1;
+    var x12_11 = seg1.x2 - seg1.x1;
+    var y12_11 = seg1.y2 - seg1.y1;
+    var y22_21 = seg2.y2 - seg2.y1;
+    var x22_21 = seg2.x2 - seg2.x1;
+    var d = (y22_21 * x12_11) - (x22_21 * y12_11);
+    var n1 = (x22_21 * y11_21) - (y22_21 * x11_21);
+    var n2 = (x12_11 * y11_21) - (y12_11 * x11_21);
+    if(d == 0) {
+        // parallel
+        if(n1 == 0 && n2 == 0) {
+            // coincident
+            intersection = true;
+        }
+    } else {
+        var along1 = n1 / d;
+        var along2 = n2 / d;
+        if(along1 >= 0 && along1 <= 1 && along2 >=0 && along2 <= 1) {
+            // intersect
+            if(!point) {
+                intersection = true;
+            } else {
+                // calculate the intersection point
+                var x = seg1.x1 + (along1 * x12_11);
+                var y = seg1.y1 + (along1 * y12_11);
+                intersection = new OpenLayers.Geometry.Point(x, y);
+            }
+        }
+    }
+    if(tolerance) {
+        var dist;
+        if(intersection) {
+            if(point) {
+                var segs = [seg1, seg2];
+                var seg, x, y;
+                // check segment endpoints for proximity to intersection
+                // set intersection to first endpoint within the tolerance
+                outer: for(var i=0; i<2; ++i) {
+                    seg = segs[i];
+                    for(var j=1; j<3; ++j) {
+                        x = seg["x" + j];
+                        y = seg["y" + j];
+                        dist = Math.sqrt(
+                            Math.pow(x - intersection.x, 2) +
+                            Math.pow(y - intersection.y, 2)
+                        );
+                        if(dist < tolerance) {
+                            intersection.x = x;
+                            intersection.y = y;
+                            break outer;
+                        }
+                    }
+                }
+                
+            }
+        } else {
+            // no calculated intersection, but segments could be within
+            // the tolerance of one another
+            var segs = [seg1, seg2];
+            var source, target, x, y, p, result;
+            // check segment endpoints for proximity to intersection
+            // set intersection to first endpoint within the tolerance
+            outer: for(var i=0; i<2; ++i) {
+                source = segs[i];
+                target = segs[(i+1)%2];
+                for(var j=1; j<3; ++j) {
+                    p = {x: source["x"+j], y: source["y"+j]};
+                    result = OpenLayers.Geometry.distanceToSegment(p, target);
+                    if(result.distance < tolerance) {
+                        if(point) {
+                            intersection = new OpenLayers.Geometry.Point(p.x, p.y);
+                        } else {
+                            intersection = true;
+                        }
+                        break outer;
+                    }
+                }
+            }
+        }
+    }
+    return intersection;
+};
+
+/**
+ * Function: OpenLayers.Geometry.distanceToSegment
+ *
+ * Parameters:
+ * point - {Object} An object with x and y properties representing the
+ *     point coordinates.
+ * segment - {Object} An object with x1, y1, x2, and y2 properties
+ *     representing endpoint coordinates.
+ *
+ * Returns:
+ * {Object} An object with distance, along, x, and y properties.  The distance
+ *     will be the shortest distance between the input point and segment.
+ *     The x and y properties represent the coordinates along the segment
+ *     where the shortest distance meets the segment. The along attribute
+ *     describes how far between the two segment points the given point is.
+ */
+OpenLayers.Geometry.distanceToSegment = function(point, segment) {
+    var result = OpenLayers.Geometry.distanceSquaredToSegment(point, segment);
+    result.distance = Math.sqrt(result.distance);
+    return result;
+};
+
+/**
+ * Function: OpenLayers.Geometry.distanceSquaredToSegment
+ *
+ * Usually the distanceToSegment function should be used. This variant however
+ * can be used for comparisons where the exact distance is not important.
+ *
+ * Parameters:
+ * point - {Object} An object with x and y properties representing the
+ *     point coordinates.
+ * segment - {Object} An object with x1, y1, x2, and y2 properties
+ *     representing endpoint coordinates.
+ *
+ * Returns:
+ * {Object} An object with squared distance, along, x, and y properties.
+ *     The distance will be the shortest distance between the input point and
+ *     segment. The x and y properties represent the coordinates along the
+ *     segment where the shortest distance meets the segment. The along
+ *     attribute describes how far between the two segment points the given
+ *     point is.
+ */
+OpenLayers.Geometry.distanceSquaredToSegment = function(point, segment) {
+    var x0 = point.x;
+    var y0 = point.y;
+    var x1 = segment.x1;
+    var y1 = segment.y1;
+    var x2 = segment.x2;
+    var y2 = segment.y2;
+    var dx = x2 - x1;
+    var dy = y2 - y1;
+    var along = (dx == 0 && dy == 0) ? 0 : ((dx * (x0 - x1)) + (dy * (y0 - y1))) /
+                (Math.pow(dx, 2) + Math.pow(dy, 2));
+    var x, y;
+    if(along <= 0.0) {
+        x = x1;
+        y = y1;
+    } else if(along >= 1.0) {
+        x = x2;
+        y = y2;
+    } else {
+        x = x1 + along * dx;
+        y = y1 + along * dy;
+    }
+    return {
+        distance: Math.pow(x - x0, 2) + Math.pow(y - y0, 2),
+        x: x, y: y,
+        along: along
+    };
+};
+/* ======================================================================
+    OpenLayers/Geometry/Collection.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Geometry.js
+ */
+
+/**
+ * Class: OpenLayers.Geometry.Collection
+ * A Collection is exactly what it sounds like: A collection of different 
+ * Geometries. These are stored in the local parameter <components> (which
+ * can be passed as a parameter to the constructor). 
+ * 
+ * As new geometries are added to the collection, they are NOT cloned. 
+ * When removing geometries, they need to be specified by reference (ie you 
+ * have to pass in the *exact* geometry to be removed).
+ * 
+ * The <getArea> and <getLength> functions here merely iterate through
+ * the components, summing their respective areas and lengths.
+ *
+ * Create a new instance with the <OpenLayers.Geometry.Collection> constructor.
+ *
+ * Inherits from:
+ *  - <OpenLayers.Geometry> 
+ */
+OpenLayers.Geometry.Collection = OpenLayers.Class(OpenLayers.Geometry, {
+
+    /**
+     * APIProperty: components
+     * {Array(<OpenLayers.Geometry>)} The component parts of this geometry
+     */
+    components: null,
+    
+    /**
+     * Property: componentTypes
+     * {Array(String)} An array of class names representing the types of
+     * components that the collection can include.  A null value means the
+     * component types are not restricted.
+     */
+    componentTypes: null,
+
+    /**
+     * Constructor: OpenLayers.Geometry.Collection
+     * Creates a Geometry Collection -- a list of geoms.
+     *
+     * Parameters: 
+     * components - {Array(<OpenLayers.Geometry>)} Optional array of geometries
+     *
+     */
+    initialize: function (components) {
+        OpenLayers.Geometry.prototype.initialize.apply(this, arguments);
+        this.components = [];
+        if (components != null) {
+            this.addComponents(components);
+        }
+    },
+
+    /**
+     * APIMethod: destroy
+     * Destroy this geometry.
+     */
+    destroy: function () {
+        this.components.length = 0;
+        this.components = null;
+        OpenLayers.Geometry.prototype.destroy.apply(this, arguments);
+    },
+
+    /**
+     * APIMethod: clone
+     * Clone this geometry.
+     *
+     * Returns:
+     * {<OpenLayers.Geometry.Collection>} An exact clone of this collection
+     */
+    clone: function() {
+        var Constructor = OpenLayers.Util.getConstructor(this.CLASS_NAME);
+        var geometry = new Constructor();
+        for(var i=0, len=this.components.length; i<len; i++) {
+            geometry.addComponent(this.components[i].clone());
+        }
+        
+        // catch any randomly tagged-on properties
+        OpenLayers.Util.applyDefaults(geometry, this);
+        
+        return geometry;
+    },
+
+    /**
+     * Method: getComponentsString
+     * Get a string representing the components for this collection
+     * 
+     * Returns:
+     * {String} A string representation of the components of this geometry
+     */
+    getComponentsString: function(){
+        var strings = [];
+        for(var i=0, len=this.components.length; i<len; i++) {
+            strings.push(this.components[i].toShortString()); 
+        }
+        return strings.join(",");
+    },
+
+    /**
+     * APIMethod: calculateBounds
+     * Recalculate the bounds by iterating through the components and 
+     * calling calling extendBounds() on each item.
+     */
+    calculateBounds: function() {
+        this.bounds = null;
+        var bounds = new OpenLayers.Bounds();
+        var components = this.components;
+        if (components) {
+            for (var i=0, len=components.length; i<len; i++) {
+                bounds.extend(components[i].getBounds());
+            }
+        }
+        // to preserve old behavior, we only set bounds if non-null
+        // in the future, we could add bounds.isEmpty()
+        if (bounds.left != null && bounds.bottom != null && 
+            bounds.right != null && bounds.top != null) {
+            this.setBounds(bounds);
+        }
+    },
+
+    /**
+     * APIMethod: addComponents
+     * Add components to this geometry.
+     *
+     * Parameters:
+     * components - {Array(<OpenLayers.Geometry>)} An array of geometries to add
+     */
+    addComponents: function(components){
+        if(!(OpenLayers.Util.isArray(components))) {
+            components = [components];
+        }
+        for(var i=0, len=components.length; i<len; i++) {
+            this.addComponent(components[i]);
+        }
+    },
+
+    /**
+     * Method: addComponent
+     * Add a new component (geometry) to the collection.  If this.componentTypes
+     * is set, then the component class name must be in the componentTypes array.
+     *
+     * The bounds cache is reset.
+     * 
+     * Parameters:
+     * component - {<OpenLayers.Geometry>} A geometry to add
+     * index - {int} Optional index into the array to insert the component
+     *
+     * Returns:
+     * {Boolean} The component geometry was successfully added
+     */    
+    addComponent: function(component, index) {
+        var added = false;
+        if(component) {
+            if(this.componentTypes == null ||
+               (OpenLayers.Util.indexOf(this.componentTypes,
+                                        component.CLASS_NAME) > -1)) {
+
+                if(index != null && (index < this.components.length)) {
+                    var components1 = this.components.slice(0, index);
+                    var components2 = this.components.slice(index, 
+                                                           this.components.length);
+                    components1.push(component);
+                    this.components = components1.concat(components2);
+                } else {
+                    this.components.push(component);
+                }
+                component.parent = this;
+                this.clearBounds();
+                added = true;
+            }
+        }
+        return added;
+    },
+    
+    /**
+     * APIMethod: removeComponents
+     * Remove components from this geometry.
+     *
+     * Parameters:
+     * components - {Array(<OpenLayers.Geometry>)} The components to be removed
+     *
+     * Returns: 
+     * {Boolean} A component was removed.
+     */
+    removeComponents: function(components) {
+        var removed = false;
+
+        if(!(OpenLayers.Util.isArray(components))) {
+            components = [components];
+        }
+        for(var i=components.length-1; i>=0; --i) {
+            removed = this.removeComponent(components[i]) || removed;
+        }
+        return removed;
+    },
+    
+    /**
+     * Method: removeComponent
+     * Remove a component from this geometry.
+     *
+     * Parameters:
+     * component - {<OpenLayers.Geometry>} 
+     *
+     * Returns: 
+     * {Boolean} The component was removed.
+     */
+    removeComponent: function(component) {
+        
+        OpenLayers.Util.removeItem(this.components, component);
+        
+        // clearBounds() so that it gets recalculated on the next call
+        // to this.getBounds();
+        this.clearBounds();
+        return true;
+    },
+
+    /**
+     * APIMethod: getLength
+     * Calculate the length of this geometry
+     *
+     * Returns:
+     * {Float} The length of the geometry
+     */
+    getLength: function() {
+        var length = 0.0;
+        for (var i=0, len=this.components.length; i<len; i++) {
+            length += this.components[i].getLength();
+        }
+        return length;
+    },
+    
+    /**
+     * APIMethod: getArea
+     * Calculate the area of this geometry. Note how this function is overridden
+     * in <OpenLayers.Geometry.Polygon>.
+     *
+     * Returns:
+     * {Float} The area of the collection by summing its parts
+     */
+    getArea: function() {
+        var area = 0.0;
+        for (var i=0, len=this.components.length; i<len; i++) {
+            area += this.components[i].getArea();
+        }
+        return area;
+    },
+
+    /** 
+     * APIMethod: getGeodesicArea
+     * Calculate the approximate area of the polygon were it projected onto
+     *     the earth.
+     *
+     * Parameters:
+     * projection - {<OpenLayers.Projection>} The spatial reference system
+     *     for the geometry coordinates.  If not provided, Geographic/WGS84 is
+     *     assumed.
+     * 
+     * Reference:
+     * Robert. G. Chamberlain and William H. Duquette, "Some Algorithms for
+     *     Polygons on a Sphere", JPL Publication 07-03, Jet Propulsion
+     *     Laboratory, Pasadena, CA, June 2007 http://trs-new.jpl.nasa.gov/dspace/handle/2014/40409
+     *
+     * Returns:
+     * {float} The approximate geodesic area of the geometry in square meters.
+     */
+    getGeodesicArea: function(projection) {
+        var area = 0.0;
+        for(var i=0, len=this.components.length; i<len; i++) {
+            area += this.components[i].getGeodesicArea(projection);
+        }
+        return area;
+    },
+    
+    /**
+     * APIMethod: getCentroid
+     *
+     * Compute the centroid for this geometry collection.
+     *
+     * Parameters:
+     * weighted - {Boolean} Perform the getCentroid computation recursively,
+     * returning an area weighted average of all geometries in this collection.
+     *
+     * Returns:
+     * {<OpenLayers.Geometry.Point>} The centroid of the collection
+     */
+    getCentroid: function(weighted) {
+        if (!weighted) {
+            return this.components.length && this.components[0].getCentroid();
+        }
+        var len = this.components.length;
+        if (!len) {
+            return false;
+        }
+        
+        var areas = [];
+        var centroids = [];
+        var areaSum = 0;
+        var minArea = Number.MAX_VALUE;
+        var component;
+        for (var i=0; i<len; ++i) {
+            component = this.components[i];
+            var area = component.getArea();
+            var centroid = component.getCentroid(true);
+            if (isNaN(area) || isNaN(centroid.x) || isNaN(centroid.y)) {
+                continue;
+            }
+            areas.push(area);
+            areaSum += area;
+            minArea = (area < minArea && area > 0) ? area : minArea;
+            centroids.push(centroid);
+        }
+        len = areas.length;
+        if (areaSum === 0) {
+            // all the components in this collection have 0 area
+            // probably a collection of points -- weight all the points the same
+            for (var i=0; i<len; ++i) {
+                areas[i] = 1;
+            }
+            areaSum = areas.length;
+        } else {
+            // normalize all the areas where the smallest area will get
+            // a value of 1
+            for (var i=0; i<len; ++i) {
+                areas[i] /= minArea;
+            }
+            areaSum /= minArea;
+        }
+        
+        var xSum = 0, ySum = 0, centroid, area;
+        for (var i=0; i<len; ++i) {
+            centroid = centroids[i];
+            area = areas[i];
+            xSum += centroid.x * area;
+            ySum += centroid.y * area;
+        }
+        
+        return new OpenLayers.Geometry.Point(xSum/areaSum, ySum/areaSum);
+    },
+
+    /**
+     * APIMethod: getGeodesicLength
+     * Calculate the approximate length of the geometry were it projected onto
+     *     the earth.
+     *
+     * projection - {<OpenLayers.Projection>} The spatial reference system
+     *     for the geometry coordinates.  If not provided, Geographic/WGS84 is
+     *     assumed.
+     * 
+     * Returns:
+     * {Float} The appoximate geodesic length of the geometry in meters.
+     */
+    getGeodesicLength: function(projection) {
+        var length = 0.0;
+        for(var i=0, len=this.components.length; i<len; i++) {
+            length += this.components[i].getGeodesicLength(projection);
+        }
+        return length;
+    },
+
+    /**
+     * APIMethod: move
+     * Moves a geometry by the given displacement along positive x and y axes.
+     *     This modifies the position of the geometry and clears the cached
+     *     bounds.
+     *
+     * Parameters:
+     * x - {Float} Distance to move geometry in positive x direction. 
+     * y - {Float} Distance to move geometry in positive y direction.
+     */
+    move: function(x, y) {
+        for(var i=0, len=this.components.length; i<len; i++) {
+            this.components[i].move(x, y);
+        }
+    },
+
+    /**
+     * APIMethod: rotate
+     * Rotate a geometry around some origin
+     *
+     * Parameters:
+     * angle - {Float} Rotation angle in degrees (measured counterclockwise
+     *                 from the positive x-axis)
+     * origin - {<OpenLayers.Geometry.Point>} Center point for the rotation
+     */
+    rotate: function(angle, origin) {
+        for(var i=0, len=this.components.length; i<len; ++i) {
+            this.components[i].rotate(angle, origin);
+        }
+    },
+
+    /**
+     * APIMethod: resize
+     * Resize a geometry relative to some origin.  Use this method to apply
+     *     a uniform scaling to a geometry.
+     *
+     * Parameters:
+     * scale - {Float} Factor by which to scale the geometry.  A scale of 2
+     *                 doubles the size of the geometry in each dimension
+     *                 (lines, for example, will be twice as long, and polygons
+     *                 will have four times the area).
+     * origin - {<OpenLayers.Geometry.Point>} Point of origin for resizing
+     * ratio - {Float} Optional x:y ratio for resizing.  Default ratio is 1.
+     * 
+     * Returns:
+     * {<OpenLayers.Geometry>} - The current geometry. 
+     */
+    resize: function(scale, origin, ratio) {
+        for(var i=0; i<this.components.length; ++i) {
+            this.components[i].resize(scale, origin, ratio);
+        }
+        return this;
+    },
+
+    /**
+     * APIMethod: distanceTo
+     * Calculate the closest distance between two geometries (on the x-y plane).
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} The target geometry.
+     * options - {Object} Optional properties for configuring the distance
+     *     calculation.
+     *
+     * Valid options:
+     * details - {Boolean} Return details from the distance calculation.
+     *     Default is false.
+     * edge - {Boolean} Calculate the distance from this geometry to the
+     *     nearest edge of the target geometry.  Default is true.  If true,
+     *     calling distanceTo from a geometry that is wholly contained within
+     *     the target will result in a non-zero distance.  If false, whenever
+     *     geometries intersect, calling distanceTo will return 0.  If false,
+     *     details cannot be returned.
+     *
+     * Returns:
+     * {Number | Object} The distance between this geometry and the target.
+     *     If details is true, the return will be an object with distance,
+     *     x0, y0, x1, and y1 properties.  The x0 and y0 properties represent
+     *     the coordinates of the closest point on this geometry. The x1 and y1
+     *     properties represent the coordinates of the closest point on the
+     *     target geometry.
+     */
+    distanceTo: function(geometry, options) {
+        var edge = !(options && options.edge === false);
+        var details = edge && options && options.details;
+        var result, best, distance;
+        var min = Number.POSITIVE_INFINITY;
+        for(var i=0, len=this.components.length; i<len; ++i) {
+            result = this.components[i].distanceTo(geometry, options);
+            distance = details ? result.distance : result;
+            if(distance < min) {
+                min = distance;
+                best = result;
+                if(min == 0) {
+                    break;
+                }
+            }
+        }
+        return best;
+    },
+
+    /** 
+     * APIMethod: equals
+     * Determine whether another geometry is equivalent to this one.  Geometries
+     *     are considered equivalent if all components have the same coordinates.
+     * 
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} The geometry to test. 
+     *
+     * Returns:
+     * {Boolean} The supplied geometry is equivalent to this geometry.
+     */
+    equals: function(geometry) {
+        var equivalent = true;
+        if(!geometry || !geometry.CLASS_NAME ||
+           (this.CLASS_NAME != geometry.CLASS_NAME)) {
+            equivalent = false;
+        } else if(!(OpenLayers.Util.isArray(geometry.components)) ||
+                  (geometry.components.length != this.components.length)) {
+            equivalent = false;
+        } else {
+            for(var i=0, len=this.components.length; i<len; ++i) {
+                if(!this.components[i].equals(geometry.components[i])) {
+                    equivalent = false;
+                    break;
+                }
+            }
+        }
+        return equivalent;
+    },
+
+    /**
+     * APIMethod: transform
+     * Reproject the components geometry from source to dest.
+     * 
+     * Parameters:
+     * source - {<OpenLayers.Projection>} 
+     * dest - {<OpenLayers.Projection>}
+     * 
+     * Returns:
+     * {<OpenLayers.Geometry>} 
+     */
+    transform: function(source, dest) {
+        if (source && dest) {
+            for (var i=0, len=this.components.length; i<len; i++) {  
+                var component = this.components[i];
+                component.transform(source, dest);
+            }
+            this.bounds = null;
+        }
+        return this;
+    },
+
+    /**
+     * APIMethod: intersects
+     * Determine if the input geometry intersects this one.
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} Any type of geometry.
+     *
+     * Returns:
+     * {Boolean} The input geometry intersects this one.
+     */
+    intersects: function(geometry) {
+        var intersect = false;
+        for(var i=0, len=this.components.length; i<len; ++ i) {
+            intersect = geometry.intersects(this.components[i]);
+            if(intersect) {
+                break;
+            }
+        }
+        return intersect;
+    },
+
+    /**
+     * APIMethod: getVertices
+     * Return a list of all points in this geometry.
+     *
+     * Parameters:
+     * nodes - {Boolean} For lines, only return vertices that are
+     *     endpoints.  If false, for lines, only vertices that are not
+     *     endpoints will be returned.  If not provided, all vertices will
+     *     be returned.
+     *
+     * Returns:
+     * {Array} A list of all vertices in the geometry.
+     */
+    getVertices: function(nodes) {
+        var vertices = [];
+        for(var i=0, len=this.components.length; i<len; ++i) {
+            Array.prototype.push.apply(
+                vertices, this.components[i].getVertices(nodes)
+            );
+        }
+        return vertices;
+    },
+
+
+    CLASS_NAME: "OpenLayers.Geometry.Collection"
+});
+/* ======================================================================
+    OpenLayers/Geometry/Point.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Geometry.js
+ */
+
+/**
+ * Class: OpenLayers.Geometry.Point
+ * Point geometry class. 
+ * 
+ * Inherits from:
+ *  - <OpenLayers.Geometry> 
+ */
+OpenLayers.Geometry.Point = OpenLayers.Class(OpenLayers.Geometry, {
+
+    /** 
+     * APIProperty: x 
+     * {float} 
+     */
+    x: null,
+
+    /** 
+     * APIProperty: y 
+     * {float} 
+     */
+    y: null,
+
+    /**
+     * Constructor: OpenLayers.Geometry.Point
+     * Construct a point geometry.
+     *
+     * Parameters:
+     * x - {float} 
+     * y - {float}
+     * 
+     */
+    initialize: function(x, y) {
+        OpenLayers.Geometry.prototype.initialize.apply(this, arguments);
+        
+        this.x = parseFloat(x);
+        this.y = parseFloat(y);
+    },
+
+    /**
+     * APIMethod: clone
+     * 
+     * Returns:
+     * {<OpenLayers.Geometry.Point>} An exact clone of this OpenLayers.Geometry.Point
+     */
+    clone: function(obj) {
+        if (obj == null) {
+            obj = new OpenLayers.Geometry.Point(this.x, this.y);
+        }
+
+        // catch any randomly tagged-on properties
+        OpenLayers.Util.applyDefaults(obj, this);
+
+        return obj;
+    },
+
+    /** 
+     * Method: calculateBounds
+     * Create a new Bounds based on the lon/lat
+     */
+    calculateBounds: function () {
+        this.bounds = new OpenLayers.Bounds(this.x, this.y,
+                                            this.x, this.y);
+    },
+
+    /**
+     * APIMethod: distanceTo
+     * Calculate the closest distance between two geometries (on the x-y plane).
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} The target geometry.
+     * options - {Object} Optional properties for configuring the distance
+     *     calculation.
+     *
+     * Valid options:
+     * details - {Boolean} Return details from the distance calculation.
+     *     Default is false.
+     * edge - {Boolean} Calculate the distance from this geometry to the
+     *     nearest edge of the target geometry.  Default is true.  If true,
+     *     calling distanceTo from a geometry that is wholly contained within
+     *     the target will result in a non-zero distance.  If false, whenever
+     *     geometries intersect, calling distanceTo will return 0.  If false,
+     *     details cannot be returned.
+     *
+     * Returns:
+     * {Number | Object} The distance between this geometry and the target.
+     *     If details is true, the return will be an object with distance,
+     *     x0, y0, x1, and x2 properties.  The x0 and y0 properties represent
+     *     the coordinates of the closest point on this geometry. The x1 and y1
+     *     properties represent the coordinates of the closest point on the
+     *     target geometry.
+     */
+    distanceTo: function(geometry, options) {
+        var edge = !(options && options.edge === false);
+        var details = edge && options && options.details;
+        var distance, x0, y0, x1, y1, result;
+        if(geometry instanceof OpenLayers.Geometry.Point) {
+            x0 = this.x;
+            y0 = this.y;
+            x1 = geometry.x;
+            y1 = geometry.y;
+            distance = Math.sqrt(Math.pow(x0 - x1, 2) + Math.pow(y0 - y1, 2));
+            result = !details ?
+                distance : {x0: x0, y0: y0, x1: x1, y1: y1, distance: distance};
+        } else {
+            result = geometry.distanceTo(this, options);
+            if(details) {
+                // switch coord order since this geom is target
+                result = {
+                    x0: result.x1, y0: result.y1,
+                    x1: result.x0, y1: result.y0,
+                    distance: result.distance
+                };
+            }
+        }
+        return result;
+    },
+    
+    /** 
+     * APIMethod: equals
+     * Determine whether another geometry is equivalent to this one.  Geometries
+     *     are considered equivalent if all components have the same coordinates.
+     * 
+     * Parameters:
+     * geom - {<OpenLayers.Geometry.Point>} The geometry to test. 
+     *
+     * Returns:
+     * {Boolean} The supplied geometry is equivalent to this geometry.
+     */
+    equals: function(geom) {
+        var equals = false;
+        if (geom != null) {
+            equals = ((this.x == geom.x && this.y == geom.y) ||
+                      (isNaN(this.x) && isNaN(this.y) && isNaN(geom.x) && isNaN(geom.y)));
+        }
+        return equals;
+    },
+    
+    /**
+     * Method: toShortString
+     *
+     * Returns:
+     * {String} Shortened String representation of Point object. 
+     *         (ex. <i>"5, 42"</i>)
+     */
+    toShortString: function() {
+        return (this.x + ", " + this.y);
+    },
+    
+    /**
+     * APIMethod: move
+     * Moves a geometry by the given displacement along positive x and y axes.
+     *     This modifies the position of the geometry and clears the cached
+     *     bounds.
+     *
+     * Parameters:
+     * x - {Float} Distance to move geometry in positive x direction. 
+     * y - {Float} Distance to move geometry in positive y direction.
+     */
+    move: function(x, y) {
+        this.x = this.x + x;
+        this.y = this.y + y;
+        this.clearBounds();
+    },
+
+    /**
+     * APIMethod: rotate
+     * Rotate a point around another.
+     *
+     * Parameters:
+     * angle - {Float} Rotation angle in degrees (measured counterclockwise
+     *                 from the positive x-axis)
+     * origin - {<OpenLayers.Geometry.Point>} Center point for the rotation
+     */
+    rotate: function(angle, origin) {
+        angle *= Math.PI / 180;
+        var radius = this.distanceTo(origin);
+        var theta = angle + Math.atan2(this.y - origin.y, this.x - origin.x);
+        this.x = origin.x + (radius * Math.cos(theta));
+        this.y = origin.y + (radius * Math.sin(theta));
+        this.clearBounds();
+    },
+    
+    /**
+     * APIMethod: getCentroid
+     *
+     * Returns:
+     * {<OpenLayers.Geometry.Point>} The centroid of the collection
+     */
+    getCentroid: function() {
+        return new OpenLayers.Geometry.Point(this.x, this.y);
+    },
+
+    /**
+     * APIMethod: resize
+     * Resize a point relative to some origin.  For points, this has the effect
+     *     of scaling a vector (from the origin to the point).  This method is
+     *     more useful on geometry collection subclasses.
+     *
+     * Parameters:
+     * scale - {Float} Ratio of the new distance from the origin to the old
+     *                 distance from the origin.  A scale of 2 doubles the
+     *                 distance between the point and origin.
+     * origin - {<OpenLayers.Geometry.Point>} Point of origin for resizing
+     * ratio - {Float} Optional x:y ratio for resizing.  Default ratio is 1.
+     * 
+     * Returns:
+     * {<OpenLayers.Geometry>} - The current geometry. 
+     */
+    resize: function(scale, origin, ratio) {
+        ratio = (ratio == undefined) ? 1 : ratio;
+        this.x = origin.x + (scale * ratio * (this.x - origin.x));
+        this.y = origin.y + (scale * (this.y - origin.y));
+        this.clearBounds();
+        return this;
+    },
+    
+    /**
+     * APIMethod: intersects
+     * Determine if the input geometry intersects this one.
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} Any type of geometry.
+     *
+     * Returns:
+     * {Boolean} The input geometry intersects this one.
+     */
+    intersects: function(geometry) {
+        var intersect = false;
+        if(geometry.CLASS_NAME == "OpenLayers.Geometry.Point") {
+            intersect = this.equals(geometry);
+        } else {
+            intersect = geometry.intersects(this);
+        }
+        return intersect;
+    },
+    
+    /**
+     * APIMethod: transform
+     * Translate the x,y properties of the point from source to dest.
+     * 
+     * Parameters:
+     * source - {<OpenLayers.Projection>} 
+     * dest - {<OpenLayers.Projection>}
+     * 
+     * Returns:
+     * {<OpenLayers.Geometry>} 
+     */
+    transform: function(source, dest) {
+        if ((source && dest)) {
+            OpenLayers.Projection.transform(
+                this, source, dest); 
+            this.bounds = null;
+        }       
+        return this;
+    },
+
+    /**
+     * APIMethod: getVertices
+     * Return a list of all points in this geometry.
+     *
+     * Parameters:
+     * nodes - {Boolean} For lines, only return vertices that are
+     *     endpoints.  If false, for lines, only vertices that are not
+     *     endpoints will be returned.  If not provided, all vertices will
+     *     be returned.
+     *
+     * Returns:
+     * {Array} A list of all vertices in the geometry.
+     */
+    getVertices: function(nodes) {
+        return [this];
+    },
+
+    CLASS_NAME: "OpenLayers.Geometry.Point"
+});
+/* ======================================================================
+    OpenLayers/Geometry/MultiPoint.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Geometry/Collection.js
+ * @requires OpenLayers/Geometry/Point.js
+ */
+
+/**
+ * Class: OpenLayers.Geometry.MultiPoint
+ * MultiPoint is a collection of Points.  Create a new instance with the
+ * <OpenLayers.Geometry.MultiPoint> constructor.
+ *
+ * Inherits from:
+ *  - <OpenLayers.Geometry.Collection>
+ *  - <OpenLayers.Geometry>
+ */
+OpenLayers.Geometry.MultiPoint = OpenLayers.Class(
+  OpenLayers.Geometry.Collection, {
+
+    /**
+     * Property: componentTypes
+     * {Array(String)} An array of class names representing the types of
+     * components that the collection can include.  A null value means the
+     * component types are not restricted.
+     */
+    componentTypes: ["OpenLayers.Geometry.Point"],
+
+    /**
+     * Constructor: OpenLayers.Geometry.MultiPoint
+     * Create a new MultiPoint Geometry
+     *
+     * Parameters:
+     * components - {Array(<OpenLayers.Geometry.Point>)} 
+     *
+     * Returns:
+     * {<OpenLayers.Geometry.MultiPoint>}
+     */
+
+    /**
+     * APIMethod: addPoint
+     * Wrapper for <OpenLayers.Geometry.Collection.addComponent>
+     *
+     * Parameters:
+     * point - {<OpenLayers.Geometry.Point>} Point to be added
+     * index - {Integer} Optional index
+     */
+    addPoint: function(point, index) {
+        this.addComponent(point, index);
+    },
+    
+    /**
+     * APIMethod: removePoint
+     * Wrapper for <OpenLayers.Geometry.Collection.removeComponent>
+     *
+     * Parameters:
+     * point - {<OpenLayers.Geometry.Point>} Point to be removed
+     */
+    removePoint: function(point){
+        this.removeComponent(point);
+    },
+
+    CLASS_NAME: "OpenLayers.Geometry.MultiPoint"
+});
+/* ======================================================================
+    OpenLayers/Geometry/Curve.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Geometry/MultiPoint.js
+ */
+
+/**
+ * Class: OpenLayers.Geometry.Curve
+ * A Curve is a MultiPoint, whose points are assumed to be connected. To 
+ * this end, we provide a "getLength()" function, which iterates through 
+ * the points, summing the distances between them. 
+ * 
+ * Inherits: 
+ *  - <OpenLayers.Geometry.MultiPoint>
+ */
+OpenLayers.Geometry.Curve = OpenLayers.Class(OpenLayers.Geometry.MultiPoint, {
+
+    /**
+     * Property: componentTypes
+     * {Array(String)} An array of class names representing the types of 
+     *                 components that the collection can include.  A null 
+     *                 value means the component types are not restricted.
+     */
+    componentTypes: ["OpenLayers.Geometry.Point"],
+
+    /**
+     * Constructor: OpenLayers.Geometry.Curve
+     * 
+     * Parameters:
+     * point - {Array(<OpenLayers.Geometry.Point>)}
+     */
+    
+    /**
+     * APIMethod: getLength
+     * 
+     * Returns:
+     * {Float} The length of the curve
+     */
+    getLength: function() {
+        var length = 0.0;
+        if ( this.components && (this.components.length > 1)) {
+            for(var i=1, len=this.components.length; i<len; i++) {
+                length += this.components[i-1].distanceTo(this.components[i]);
+            }
+        }
+        return length;
+    },
+
+    /**
+     * APIMethod: getGeodesicLength
+     * Calculate the approximate length of the geometry were it projected onto
+     *     the earth.
+     *
+     * projection - {<OpenLayers.Projection>} The spatial reference system
+     *     for the geometry coordinates.  If not provided, Geographic/WGS84 is
+     *     assumed.
+     * 
+     * Returns:
+     * {Float} The appoximate geodesic length of the geometry in meters.
+     */
+    getGeodesicLength: function(projection) {
+        var geom = this;  // so we can work with a clone if needed
+        if(projection) {
+            var gg = new OpenLayers.Projection("EPSG:4326");
+            if(!gg.equals(projection)) {
+                geom = this.clone().transform(projection, gg);
+            }
+        }
+        var length = 0.0;
+        if(geom.components && (geom.components.length > 1)) {
+            var p1, p2;
+            for(var i=1, len=geom.components.length; i<len; i++) {
+                p1 = geom.components[i-1];
+                p2 = geom.components[i];
+                // this returns km and requires lon/lat properties
+                length += OpenLayers.Util.distVincenty(
+                    {lon: p1.x, lat: p1.y}, {lon: p2.x, lat: p2.y}
+                );
+            }
+        }
+        // convert to m
+        return length * 1000;
+    },
+
+    CLASS_NAME: "OpenLayers.Geometry.Curve"
+});
+/* ======================================================================
+    OpenLayers/Geometry/LineString.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Geometry/Curve.js
+ */
+
+/**
+ * Class: OpenLayers.Geometry.LineString
+ * A LineString is a Curve which, once two points have been added to it, can 
+ * never be less than two points long.
+ * 
+ * Inherits from:
+ *  - <OpenLayers.Geometry.Curve>
+ */
+OpenLayers.Geometry.LineString = OpenLayers.Class(OpenLayers.Geometry.Curve, {
+
+    /**
+     * Constructor: OpenLayers.Geometry.LineString
+     * Create a new LineString geometry
+     *
+     * Parameters:
+     * points - {Array(<OpenLayers.Geometry.Point>)} An array of points used to
+     *          generate the linestring
+     *
+     */
+
+    /**
+     * APIMethod: removeComponent
+     * Only allows removal of a point if there are three or more points in 
+     * the linestring. (otherwise the result would be just a single point)
+     *
+     * Parameters: 
+     * point - {<OpenLayers.Geometry.Point>} The point to be removed
+     *
+     * Returns: 
+     * {Boolean} The component was removed.
+     */
+    removeComponent: function(point) {
+        var removed = this.components && (this.components.length > 2);
+        if (removed) {
+            OpenLayers.Geometry.Collection.prototype.removeComponent.apply(this, 
+                                                                  arguments);
+        }
+        return removed;
+    },
+    
+    /**
+     * APIMethod: intersects
+     * Test for instersection between two geometries.  This is a cheapo
+     *     implementation of the Bently-Ottmann algorigithm.  It doesn't
+     *     really keep track of a sweep line data structure.  It is closer
+     *     to the brute force method, except that segments are sorted and
+     *     potential intersections are only calculated when bounding boxes
+     *     intersect.
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>}
+     *
+     * Returns:
+     * {Boolean} The input geometry intersects this geometry.
+     */
+    intersects: function(geometry) {
+        var intersect = false;
+        var type = geometry.CLASS_NAME;
+        if(type == "OpenLayers.Geometry.LineString" ||
+           type == "OpenLayers.Geometry.LinearRing" ||
+           type == "OpenLayers.Geometry.Point") {
+            var segs1 = this.getSortedSegments();
+            var segs2;
+            if(type == "OpenLayers.Geometry.Point") {
+                segs2 = [{
+                    x1: geometry.x, y1: geometry.y,
+                    x2: geometry.x, y2: geometry.y
+                }];
+            } else {
+                segs2 = geometry.getSortedSegments();
+            }
+            var seg1, seg1x1, seg1x2, seg1y1, seg1y2,
+                seg2, seg2y1, seg2y2;
+            // sweep right
+            outer: for(var i=0, len=segs1.length; i<len; ++i) {
+                seg1 = segs1[i];
+                seg1x1 = seg1.x1;
+                seg1x2 = seg1.x2;
+                seg1y1 = seg1.y1;
+                seg1y2 = seg1.y2;
+                inner: for(var j=0, jlen=segs2.length; j<jlen; ++j) {
+                    seg2 = segs2[j];
+                    if(seg2.x1 > seg1x2) {
+                        // seg1 still left of seg2
+                        break;
+                    }
+                    if(seg2.x2 < seg1x1) {
+                        // seg2 still left of seg1
+                        continue;
+                    }
+                    seg2y1 = seg2.y1;
+                    seg2y2 = seg2.y2;
+                    if(Math.min(seg2y1, seg2y2) > Math.max(seg1y1, seg1y2)) {
+                        // seg2 above seg1
+                        continue;
+                    }
+                    if(Math.max(seg2y1, seg2y2) < Math.min(seg1y1, seg1y2)) {
+                        // seg2 below seg1
+                        continue;
+                    }
+                    if(OpenLayers.Geometry.segmentsIntersect(seg1, seg2)) {
+                        intersect = true;
+                        break outer;
+                    }
+                }
+            }
+        } else {
+            intersect = geometry.intersects(this);
+        }
+        return intersect;
+    },
+    
+    /**
+     * Method: getSortedSegments
+     *
+     * Returns:
+     * {Array} An array of segment objects.  Segment objects have properties
+     *     x1, y1, x2, and y2.  The start point is represented by x1 and y1.
+     *     The end point is represented by x2 and y2.  Start and end are
+     *     ordered so that x1 < x2.
+     */
+    getSortedSegments: function() {
+        var numSeg = this.components.length - 1;
+        var segments = new Array(numSeg), point1, point2;
+        for(var i=0; i<numSeg; ++i) {
+            point1 = this.components[i];
+            point2 = this.components[i + 1];
+            if(point1.x < point2.x) {
+                segments[i] = {
+                    x1: point1.x,
+                    y1: point1.y,
+                    x2: point2.x,
+                    y2: point2.y
+                };
+            } else {
+                segments[i] = {
+                    x1: point2.x,
+                    y1: point2.y,
+                    x2: point1.x,
+                    y2: point1.y
+                };
+            }
+        }
+        // more efficient to define this somewhere static
+        function byX1(seg1, seg2) {
+            return seg1.x1 - seg2.x1;
+        }
+        return segments.sort(byX1);
+    },
+    
+    /**
+     * Method: splitWithSegment
+     * Split this geometry with the given segment.
+     *
+     * Parameters:
+     * seg - {Object} An object with x1, y1, x2, and y2 properties referencing
+     *     segment endpoint coordinates.
+     * options - {Object} Properties of this object will be used to determine
+     *     how the split is conducted.
+     *
+     * Valid options:
+     * edge - {Boolean} Allow splitting when only edges intersect.  Default is
+     *     true.  If false, a vertex on the source segment must be within the
+     *     tolerance distance of the intersection to be considered a split.
+     * tolerance - {Number} If a non-null value is provided, intersections
+     *     within the tolerance distance of one of the source segment's
+     *     endpoints will be assumed to occur at the endpoint.
+     *
+     * Returns:
+     * {Object} An object with *lines* and *points* properties.  If the given
+     *     segment intersects this linestring, the lines array will reference
+     *     geometries that result from the split.  The points array will contain
+     *     all intersection points.  Intersection points are sorted along the
+     *     segment (in order from x1,y1 to x2,y2).
+     */
+    splitWithSegment: function(seg, options) {
+        var edge = !(options && options.edge === false);
+        var tolerance = options && options.tolerance;
+        var lines = [];
+        var verts = this.getVertices();
+        var points = [];
+        var intersections = [];
+        var split = false;
+        var vert1, vert2, point;
+        var node, vertex, target;
+        var interOptions = {point: true, tolerance: tolerance};
+        var result = null;
+        for(var i=0, stop=verts.length-2; i<=stop; ++i) {
+            vert1 = verts[i];
+            points.push(vert1.clone());
+            vert2 = verts[i+1];
+            target = {x1: vert1.x, y1: vert1.y, x2: vert2.x, y2: vert2.y};
+            point = OpenLayers.Geometry.segmentsIntersect(
+                seg, target, interOptions
+            );
+            if(point instanceof OpenLayers.Geometry.Point) {
+                if((point.x === seg.x1 && point.y === seg.y1) ||
+                   (point.x === seg.x2 && point.y === seg.y2) ||
+                   point.equals(vert1) || point.equals(vert2)) {
+                    vertex = true;
+                } else {
+                    vertex = false;
+                }
+                if(vertex || edge) {
+                    // push intersections different than the previous
+                    if(!point.equals(intersections[intersections.length-1])) {
+                        intersections.push(point.clone());
+                    }
+                    if(i === 0) {
+                        if(point.equals(vert1)) {
+                            continue;
+                        }
+                    }
+                    if(point.equals(vert2)) {
+                        continue;
+                    }
+                    split = true;
+                    if(!point.equals(vert1)) {
+                        points.push(point);
+                    }
+                    lines.push(new OpenLayers.Geometry.LineString(points));
+                    points = [point.clone()];
+                }
+            }
+        }
+        if(split) {
+            points.push(vert2.clone());
+            lines.push(new OpenLayers.Geometry.LineString(points));
+        }
+        if(intersections.length > 0) {
+            // sort intersections along segment
+            var xDir = seg.x1 < seg.x2 ? 1 : -1;
+            var yDir = seg.y1 < seg.y2 ? 1 : -1;
+            result = {
+                lines: lines,
+                points: intersections.sort(function(p1, p2) {
+                    return (xDir * p1.x - xDir * p2.x) || (yDir * p1.y - yDir * p2.y);
+                })
+            };
+        }
+        return result;
+    },
+
+    /**
+     * Method: split
+     * Use this geometry (the source) to attempt to split a target geometry.
+     * 
+     * Parameters:
+     * target - {<OpenLayers.Geometry>} The target geometry.
+     * options - {Object} Properties of this object will be used to determine
+     *     how the split is conducted.
+     *
+     * Valid options:
+     * mutual - {Boolean} Split the source geometry in addition to the target
+     *     geometry.  Default is false.
+     * edge - {Boolean} Allow splitting when only edges intersect.  Default is
+     *     true.  If false, a vertex on the source must be within the tolerance
+     *     distance of the intersection to be considered a split.
+     * tolerance - {Number} If a non-null value is provided, intersections
+     *     within the tolerance distance of an existing vertex on the source
+     *     will be assumed to occur at the vertex.
+     * 
+     * Returns:
+     * {Array} A list of geometries (of this same type as the target) that
+     *     result from splitting the target with the source geometry.  The
+     *     source and target geometry will remain unmodified.  If no split
+     *     results, null will be returned.  If mutual is true and a split
+     *     results, return will be an array of two arrays - the first will be
+     *     all geometries that result from splitting the source geometry and
+     *     the second will be all geometries that result from splitting the
+     *     target geometry.
+     */
+    split: function(target, options) {
+        var results = null;
+        var mutual = options && options.mutual;
+        var sourceSplit, targetSplit, sourceParts, targetParts;
+        if(target instanceof OpenLayers.Geometry.LineString) {
+            var verts = this.getVertices();
+            var vert1, vert2, seg, splits, lines, point;
+            var points = [];
+            sourceParts = [];
+            for(var i=0, stop=verts.length-2; i<=stop; ++i) {
+                vert1 = verts[i];
+                vert2 = verts[i+1];
+                seg = {
+                    x1: vert1.x, y1: vert1.y,
+                    x2: vert2.x, y2: vert2.y
+                };
+                targetParts = targetParts || [target];
+                if(mutual) {
+                    points.push(vert1.clone());
+                }
+                for(var j=0; j<targetParts.length; ++j) {
+                    splits = targetParts[j].splitWithSegment(seg, options);
+                    if(splits) {
+                        // splice in new features
+                        lines = splits.lines;
+                        if(lines.length > 0) {
+                            lines.unshift(j, 1);
+                            Array.prototype.splice.apply(targetParts, lines);
+                            j += lines.length - 2;
+                        }
+                        if(mutual) {
+                            for(var k=0, len=splits.points.length; k<len; ++k) {
+                                point = splits.points[k];
+                                if(!point.equals(vert1)) {
+                                    points.push(point);
+                                    sourceParts.push(new OpenLayers.Geometry.LineString(points));
+                                    if(point.equals(vert2)) {
+                                        points = [];
+                                    } else {
+                                        points = [point.clone()];
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if(mutual && sourceParts.length > 0 && points.length > 0) {
+                points.push(vert2.clone());
+                sourceParts.push(new OpenLayers.Geometry.LineString(points));
+            }
+        } else {
+            results = target.splitWith(this, options);
+        }
+        if(targetParts && targetParts.length > 1) {
+            targetSplit = true;
+        } else {
+            targetParts = [];
+        }
+        if(sourceParts && sourceParts.length > 1) {
+            sourceSplit = true;
+        } else {
+            sourceParts = [];
+        }
+        if(targetSplit || sourceSplit) {
+            if(mutual) {
+                results = [sourceParts, targetParts];
+            } else {
+                results = targetParts;
+            }
+        }
+        return results;
+    },
+
+    /**
+     * Method: splitWith
+     * Split this geometry (the target) with the given geometry (the source).
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} A geometry used to split this
+     *     geometry (the source).
+     * options - {Object} Properties of this object will be used to determine
+     *     how the split is conducted.
+     *
+     * Valid options:
+     * mutual - {Boolean} Split the source geometry in addition to the target
+     *     geometry.  Default is false.
+     * edge - {Boolean} Allow splitting when only edges intersect.  Default is
+     *     true.  If false, a vertex on the source must be within the tolerance
+     *     distance of the intersection to be considered a split.
+     * tolerance - {Number} If a non-null value is provided, intersections
+     *     within the tolerance distance of an existing vertex on the source
+     *     will be assumed to occur at the vertex.
+     * 
+     * Returns:
+     * {Array} A list of geometries (of this same type as the target) that
+     *     result from splitting the target with the source geometry.  The
+     *     source and target geometry will remain unmodified.  If no split
+     *     results, null will be returned.  If mutual is true and a split
+     *     results, return will be an array of two arrays - the first will be
+     *     all geometries that result from splitting the source geometry and
+     *     the second will be all geometries that result from splitting the
+     *     target geometry.
+     */
+    splitWith: function(geometry, options) {
+        return geometry.split(this, options);
+
+    },
+
+    /**
+     * APIMethod: getVertices
+     * Return a list of all points in this geometry.
+     *
+     * Parameters:
+     * nodes - {Boolean} For lines, only return vertices that are
+     *     endpoints.  If false, for lines, only vertices that are not
+     *     endpoints will be returned.  If not provided, all vertices will
+     *     be returned.
+     *
+     * Returns:
+     * {Array} A list of all vertices in the geometry.
+     */
+    getVertices: function(nodes) {
+        var vertices;
+        if(nodes === true) {
+            vertices = [
+                this.components[0],
+                this.components[this.components.length-1]
+            ];
+        } else if (nodes === false) {
+            vertices = this.components.slice(1, this.components.length-1);
+        } else {
+            vertices = this.components.slice();
+        }
+        return vertices;
+    },
+
+    /**
+     * APIMethod: distanceTo
+     * Calculate the closest distance between two geometries (on the x-y plane).
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} The target geometry.
+     * options - {Object} Optional properties for configuring the distance
+     *     calculation.
+     *
+     * Valid options:
+     * details - {Boolean} Return details from the distance calculation.
+     *     Default is false.
+     * edge - {Boolean} Calculate the distance from this geometry to the
+     *     nearest edge of the target geometry.  Default is true.  If true,
+     *     calling distanceTo from a geometry that is wholly contained within
+     *     the target will result in a non-zero distance.  If false, whenever
+     *     geometries intersect, calling distanceTo will return 0.  If false,
+     *     details cannot be returned.
+     *
+     * Returns:
+     * {Number | Object} The distance between this geometry and the target.
+     *     If details is true, the return will be an object with distance,
+     *     x0, y0, x1, and x2 properties.  The x0 and y0 properties represent
+     *     the coordinates of the closest point on this geometry. The x1 and y1
+     *     properties represent the coordinates of the closest point on the
+     *     target geometry.
+     */
+    distanceTo: function(geometry, options) {
+        var edge = !(options && options.edge === false);
+        var details = edge && options && options.details;
+        var result, best = {};
+        var min = Number.POSITIVE_INFINITY;
+        if(geometry instanceof OpenLayers.Geometry.Point) {
+            var segs = this.getSortedSegments();
+            var x = geometry.x;
+            var y = geometry.y;
+            var seg;
+            for(var i=0, len=segs.length; i<len; ++i) {
+                seg = segs[i];
+                result = OpenLayers.Geometry.distanceToSegment(geometry, seg);
+                if(result.distance < min) {
+                    min = result.distance;
+                    if(details) {
+                        best = {
+                            distance: min,
+                            x0: result.x, y0: result.y,
+                            x1: x, y1: y,
+                            index: i,
+                            indexDistance: new OpenLayers.Geometry.Point(seg.x1, seg.y1).distanceTo(geometry)
+                        };
+                    } else {
+                        best = min;
+                    }
+                    if(min === 0) {
+                        break;
+                    }
+                }
+            }
+        } else if(geometry instanceof OpenLayers.Geometry.LineString) { 
+            var segs0 = this.getSortedSegments();
+            var segs1 = geometry.getSortedSegments();
+            var seg0, seg1, intersection, x0, y0;
+            var len1 = segs1.length;
+            var interOptions = {point: true};
+            outer: for(var i=0, len=segs0.length; i<len; ++i) {
+                seg0 = segs0[i];
+                x0 = seg0.x1;
+                y0 = seg0.y1;
+                for(var j=0; j<len1; ++j) {
+                    seg1 = segs1[j];
+                    intersection = OpenLayers.Geometry.segmentsIntersect(seg0, seg1, interOptions);
+                    if(intersection) {
+                        min = 0;
+                        best = {
+                            distance: 0,
+                            x0: intersection.x, y0: intersection.y,
+                            x1: intersection.x, y1: intersection.y
+                        };
+                        break outer;
+                    } else {
+                        result = OpenLayers.Geometry.distanceToSegment({x: x0, y: y0}, seg1);
+                        if(result.distance < min) {
+                            min = result.distance;
+                            best = {
+                                distance: min,
+                                x0: x0, y0: y0,
+                                x1: result.x, y1: result.y
+                            };
+                        }
+                    }
+                }
+            }
+            if(!details) {
+                best = best.distance;
+            }
+            if(min !== 0) {
+                // check the final vertex in this line's sorted segments
+                if(seg0) {
+                    result = geometry.distanceTo(
+                        new OpenLayers.Geometry.Point(seg0.x2, seg0.y2),
+                        options
+                    );
+                    var dist = details ? result.distance : result;
+                    if(dist < min) {
+                        if(details) {
+                            best = {
+                                distance: min,
+                                x0: result.x1, y0: result.y1,
+                                x1: result.x0, y1: result.y0
+                            };
+                        } else {
+                            best = dist;
+                        }
+                    }
+                }
+            }
+        } else {
+            best = geometry.distanceTo(this, options);
+            // swap since target comes from this line
+            if(details) {
+                best = {
+                    distance: best.distance,
+                    x0: best.x1, y0: best.y1,
+                    x1: best.x0, y1: best.y0
+                };
+            }
+        }
+        return best;
+    },
+    
+    /**
+     * APIMethod: simplify
+     * This function will return a simplified LineString.
+     * Simplification is based on the Douglas-Peucker algorithm.
+     *
+     *
+     * Parameters:
+     * tolerance - {number} threshold for simplification in map units
+     *
+     * Returns:
+     * {OpenLayers.Geometry.LineString} the simplified LineString
+     */
+    simplify: function(tolerance){
+        if (this && this !== null) {
+            var points = this.getVertices();
+            if (points.length < 3) {
+                return this;
+            }
+    
+            var compareNumbers = function(a, b){
+                return (a-b);
+            };
+    
+            /**
+             * Private function doing the Douglas-Peucker reduction
+             */
+            var douglasPeuckerReduction = function(points, firstPoint, lastPoint, tolerance){
+                var maxDistance = 0;
+                var indexFarthest = 0;
+    
+                for (var index = firstPoint, distance; index < lastPoint; index++) {
+                    distance = perpendicularDistance(points[firstPoint], points[lastPoint], points[index]);
+                    if (distance > maxDistance) {
+                        maxDistance = distance;
+                        indexFarthest = index;
+                    }
+                }
+    
+                if (maxDistance > tolerance && indexFarthest != firstPoint) {
+                    //Add the largest point that exceeds the tolerance
+                    pointIndexsToKeep.push(indexFarthest);
+                    douglasPeuckerReduction(points, firstPoint, indexFarthest, tolerance);
+                    douglasPeuckerReduction(points, indexFarthest, lastPoint, tolerance);
+                }
+            };
+    
+            /**
+             * Private function calculating the perpendicular distance
+             * TODO: check whether OpenLayers.Geometry.LineString::distanceTo() is faster or slower
+             */
+            var perpendicularDistance = function(point1, point2, point){
+                //Area = |(1/2)(x1y2 + x2y3 + x3y1 - x2y1 - x3y2 - x1y3)|   *Area of triangle
+                //Base = v((x1-x2)²+(x1-x2)²)                               *Base of Triangle*
+                //Area = .5*Base*H                                          *Solve for height
+                //Height = Area/.5/Base
+    
+                var area = Math.abs(0.5 * (point1.x * point2.y + point2.x * point.y + point.x * point1.y - point2.x * point1.y - point.x * point2.y - point1.x * point.y));
+                var bottom = Math.sqrt(Math.pow(point1.x - point2.x, 2) + Math.pow(point1.y - point2.y, 2));
+                var height = area / bottom * 2;
+    
+                return height;
+            };
+    
+            var firstPoint = 0;
+            var lastPoint = points.length - 1;
+            var pointIndexsToKeep = [];
+    
+            //Add the first and last index to the keepers
+            pointIndexsToKeep.push(firstPoint);
+            pointIndexsToKeep.push(lastPoint);
+    
+            //The first and the last point cannot be the same
+            while (points[firstPoint].equals(points[lastPoint])) {
+                lastPoint--;
+                //Addition: the first point not equal to first point in the LineString is kept as well
+                pointIndexsToKeep.push(lastPoint);
+            }
+    
+            douglasPeuckerReduction(points, firstPoint, lastPoint, tolerance);
+            var returnPoints = [];
+            pointIndexsToKeep.sort(compareNumbers);
+            for (var index = 0; index < pointIndexsToKeep.length; index++) {
+                returnPoints.push(points[pointIndexsToKeep[index]]);
+            }
+            return new OpenLayers.Geometry.LineString(returnPoints);
+    
+        }
+        else {
+            return this;
+        }
+    },
+
+    CLASS_NAME: "OpenLayers.Geometry.LineString"
+});
+
+
+/**
+ * Function: OpenLayers.Geometry.LineString.geodesic
+ *
+ * Parameters:
+ * interpolate - {function(number): OpenLayers.Geometry.Point} Interpolate
+ *     function.
+ * transform - {function(OpenLayers.Geometry.Point): OpenLayers.Geometry.Point}
+ *     Transform from longitude/latitude to projected coordinates.
+ * squaredTolerance - {number} Squared tolerance.
+ *
+ * Returns:
+ * {OpenLayers.Geometry.LineString}
+ */
+OpenLayers.Geometry.LineString.geodesic =
+        function(interpolate, transform, squaredTolerance) {
+    // FIXME reduce garbage generation
+    // FIXME optimize stack operations
+
+    var components = [];
+
+    var geoA = interpolate(0);
+    var geoB = interpolate(1);
+
+    var a = transform(geoA);
+    var b = transform(geoB);
+
+    var geoStack = [geoB, geoA];
+    var stack = [b, a];
+    var fractionStack = [1, 0];
+
+    var fractions = {};
+
+    var maxIterations = 1e5;
+    var geoM, m, fracA, fracB, fracM, key;
+
+    while (--maxIterations > 0 && fractionStack.length > 0) {
+        // Pop the a coordinate off the stack
+        fracA = fractionStack.pop();
+        geoA = geoStack.pop();
+        a = stack.pop();
+        // Add the a coordinate if it has not been added yet
+        key = fracA.toString();
+        if (!(key in fractions)) {
+            components.push(a);
+            fractions[key] = true;
+        }
+        // Pop the b coordinate off the stack
+        fracB = fractionStack.pop();
+        geoB = geoStack.pop();
+        b = stack.pop();
+        // Find the m point between the a and b coordinates
+        fracM = (fracA + fracB) / 2;
+        geoM = interpolate(fracM);
+        m = transform(geoM);
+        if (OpenLayers.Geometry.distanceSquaredToSegment(m, {x1: a.x, y1: a.y,
+                x2: b.x, y2: b.y}).distance < squaredTolerance) {
+            // If the m point is sufficiently close to the straight line, then
+            // we discard it. Just use the b coordinate and move on to the next
+            // line segment.
+            components.push(b);
+            key = fracB.toString();
+            fractions[key] = true;
+        } else {
+            // Otherwise, we need to subdivide the current line segment.
+            // Split it into two and push the two line segments onto the stack.
+            fractionStack.push(fracB, fracM, fracM, fracA);
+            stack.push(b, m, m, a);
+            geoStack.push(geoB, geoM, geoM, geoA);
+        }
+    }
+
+    return new OpenLayers.Geometry.LineString(components);
+};
+
+
+/**
+ * Function: OpenLayers.Geometry.LineString.geodesicMeridian
+ * Generate a meridian (line at constant longitude).
+ *
+ * Parameters:
+ * lon - {number} Longitude.
+ * lat1 - {number} Latitude 1.
+ * lat2 - {number} Latitude 2.
+ * projection - {OpenLayers.Projection} Projection.
+ * squaredTolerance - {number} Squared tolerance.
+ *
+ * Returns:
+ * {OpenLayers.Geometry.LineString} Line geometry for the meridian at <lon>.
+ */
+OpenLayers.Geometry.LineString.geodesicMeridian =
+        function(lon, lat1, lat2, projection, squaredTolerance) {
+    var epsg4326Projection = new OpenLayers.Projection('EPSG:4326');
+    return OpenLayers.Geometry.LineString.geodesic(
+        function(frac) {
+            return new OpenLayers.Geometry.Point(
+                    lon, lat1 + ((lat2 - lat1) * frac));
+        },
+        function(point) {
+            return point.transform(epsg4326Projection, projection);
+        },
+        squaredTolerance
+  );
+};
+
+
+/**
+ * Function: OpenLayers.Geometry.LineString.geodesicParallel
+ * Generate a parallel (line at constant latitude).
+ *
+ * Parameters:
+ * lat - {number} Latitude.
+ * lon1 - {number} Longitude 1.
+ * lon2 - {number} Longitude 2.
+ * projection {OpenLayers.Projection} Projection.
+ * squaredTolerance - {number} Squared tolerance.
+ *
+ * Returns:
+ * {OpenLayers.Geometry.LineString} Line geometry for the parallel at <lat>.
+ */
+OpenLayers.Geometry.LineString.geodesicParallel =
+        function(lat, lon1, lon2, projection, squaredTolerance) {
+    var epsg4326Projection = new OpenLayers.Projection('EPSG:4326');
+    return OpenLayers.Geometry.LineString.geodesic(
+        function(frac) {
+            return new OpenLayers.Geometry.Point(
+                    lon1 + ((lon2 - lon1) * frac), lat);
+        },
+        function(point) {
+            return point.transform(epsg4326Projection, projection);
+        },
+        squaredTolerance
+    );
+};
+
+/* ======================================================================
+    OpenLayers/Geometry/LinearRing.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Geometry/LineString.js
+ */
+
+/**
+ * Class: OpenLayers.Geometry.LinearRing
+ * 
+ * A Linear Ring is a special LineString which is closed. It closes itself 
+ * automatically on every addPoint/removePoint by adding a copy of the first
+ * point as the last point. 
+ * 
+ * Also, as it is the first in the line family to close itself, a getArea()
+ * function is defined to calculate the enclosed area of the linearRing
+ * 
+ * Inherits:
+ *  - <OpenLayers.Geometry.LineString>
+ */
+OpenLayers.Geometry.LinearRing = OpenLayers.Class(
+  OpenLayers.Geometry.LineString, {
+
+    /**
+     * Property: componentTypes
+     * {Array(String)} An array of class names representing the types of 
+     *                 components that the collection can include.  A null 
+     *                 value means the component types are not restricted.
+     */
+    componentTypes: ["OpenLayers.Geometry.Point"],
+
+    /**
+     * Constructor: OpenLayers.Geometry.LinearRing
+     * Linear rings are constructed with an array of points.  This array
+     *     can represent a closed or open ring.  If the ring is open (the last
+     *     point does not equal the first point), the constructor will close
+     *     the ring.  If the ring is already closed (the last point does equal
+     *     the first point), it will be left closed.
+     * 
+     * Parameters:
+     * points - {Array(<OpenLayers.Geometry.Point>)} points
+     */
+
+    /**
+     * APIMethod: addComponent
+     * Adds a point to geometry components.  If the point is to be added to
+     *     the end of the components array and it is the same as the last point
+     *     already in that array, the duplicate point is not added.  This has 
+     *     the effect of closing the ring if it is not already closed, and 
+     *     doing the right thing if it is already closed.  This behavior can 
+     *     be overridden by calling the method with a non-null index as the 
+     *     second argument.
+     *
+     * Parameters:
+     * point - {<OpenLayers.Geometry.Point>}
+     * index - {Integer} Index into the array to insert the component
+     * 
+     * Returns:
+     * {Boolean} Was the Point successfully added?
+     */
+    addComponent: function(point, index) {
+        var added = false;
+
+        //remove last point
+        var lastPoint = this.components.pop();
+
+        // given an index, add the point
+        // without an index only add non-duplicate points
+        if(index != null || !point.equals(lastPoint)) {
+            added = OpenLayers.Geometry.Collection.prototype.addComponent.apply(this, 
+                                                                    arguments);
+        }
+
+        //append copy of first point
+        var firstPoint = this.components[0];
+        OpenLayers.Geometry.Collection.prototype.addComponent.apply(this, 
+                                                                [firstPoint]);
+        
+        return added;
+    },
+    
+    /**
+     * APIMethod: removeComponent
+     * Removes a point from geometry components.
+     *
+     * Parameters:
+     * point - {<OpenLayers.Geometry.Point>}
+     *
+     * Returns: 
+     * {Boolean} The component was removed.
+     */
+    removeComponent: function(point) {
+        var removed = this.components && (this.components.length > 3);
+        if (removed) {
+            //remove last point
+            this.components.pop();
+            
+            //remove our point
+            OpenLayers.Geometry.Collection.prototype.removeComponent.apply(this, 
+                                                                    arguments);
+            //append copy of first point
+            var firstPoint = this.components[0];
+            OpenLayers.Geometry.Collection.prototype.addComponent.apply(this, 
+                                                                [firstPoint]);
+        }
+        return removed;
+    },
+    
+    /**
+     * APIMethod: move
+     * Moves a geometry by the given displacement along positive x and y axes.
+     *     This modifies the position of the geometry and clears the cached
+     *     bounds.
+     *
+     * Parameters:
+     * x - {Float} Distance to move geometry in positive x direction. 
+     * y - {Float} Distance to move geometry in positive y direction.
+     */
+    move: function(x, y) {
+        for(var i = 0, len=this.components.length; i<len - 1; i++) {
+            this.components[i].move(x, y);
+        }
+    },
+
+    /**
+     * APIMethod: rotate
+     * Rotate a geometry around some origin
+     *
+     * Parameters:
+     * angle - {Float} Rotation angle in degrees (measured counterclockwise
+     *                 from the positive x-axis)
+     * origin - {<OpenLayers.Geometry.Point>} Center point for the rotation
+     */
+    rotate: function(angle, origin) {
+        for(var i=0, len=this.components.length; i<len - 1; ++i) {
+            this.components[i].rotate(angle, origin);
+        }
+    },
+
+    /**
+     * APIMethod: resize
+     * Resize a geometry relative to some origin.  Use this method to apply
+     *     a uniform scaling to a geometry.
+     *
+     * Parameters:
+     * scale - {Float} Factor by which to scale the geometry.  A scale of 2
+     *                 doubles the size of the geometry in each dimension
+     *                 (lines, for example, will be twice as long, and polygons
+     *                 will have four times the area).
+     * origin - {<OpenLayers.Geometry.Point>} Point of origin for resizing
+     * ratio - {Float} Optional x:y ratio for resizing.  Default ratio is 1.
+     * 
+     * Returns:
+     * {<OpenLayers.Geometry>} - The current geometry. 
+     */
+    resize: function(scale, origin, ratio) {
+        for(var i=0, len=this.components.length; i<len - 1; ++i) {
+            this.components[i].resize(scale, origin, ratio);
+        }
+        return this;
+    },
+    
+    /**
+     * APIMethod: transform
+     * Reproject the components geometry from source to dest.
+     *
+     * Parameters:
+     * source - {<OpenLayers.Projection>}
+     * dest - {<OpenLayers.Projection>}
+     * 
+     * Returns:
+     * {<OpenLayers.Geometry>} 
+     */
+    transform: function(source, dest) {
+        if (source && dest) {
+            for (var i=0, len=this.components.length; i<len - 1; i++) {
+                var component = this.components[i];
+                component.transform(source, dest);
+            }
+            this.bounds = null;
+        }
+        return this;
+    },
+    
+    /**
+     * APIMethod: getCentroid
+     *
+     * Returns:
+     * {<OpenLayers.Geometry.Point>} The centroid of the collection
+     */
+    getCentroid: function() {
+        if (this.components) {
+            var len = this.components.length;
+            if (len > 0 && len <= 2) {
+                return this.components[0].clone();
+            } else if (len > 2) {
+                var sumX = 0.0;
+                var sumY = 0.0;
+                var x0 = this.components[0].x;
+                var y0 = this.components[0].y;
+                var area = -1 * this.getArea();
+                if (area != 0) {
+                    for (var i = 0; i < len - 1; i++) {
+                        var b = this.components[i];
+                        var c = this.components[i+1];
+                        sumX += (b.x + c.x - 2 * x0) * ((b.x - x0) * (c.y - y0) - (c.x - x0) * (b.y - y0));
+                        sumY += (b.y + c.y - 2 * y0) * ((b.x - x0) * (c.y - y0) - (c.x - x0) * (b.y - y0));
+                    }
+                    var x = x0 + sumX / (6 * area);
+                    var y = y0 + sumY / (6 * area);
+                } else {
+                    for (var i = 0; i < len - 1; i++) {
+                        sumX += this.components[i].x;
+                        sumY += this.components[i].y;
+                    }
+                    var x = sumX / (len - 1);
+                    var y = sumY / (len - 1);
+                }
+                return new OpenLayers.Geometry.Point(x, y);
+            } else {
+                return null;
+            }
+        }
+    },
+
+    /**
+     * APIMethod: getArea
+     * Note - The area is positive if the ring is oriented CW, otherwise
+     *         it will be negative.
+     * 
+     * Returns:
+     * {Float} The signed area for a ring.
+     */
+    getArea: function() {
+        var area = 0.0;
+        if ( this.components && (this.components.length > 2)) {
+            var sum = 0.0;
+            for (var i=0, len=this.components.length; i<len - 1; i++) {
+                var b = this.components[i];
+                var c = this.components[i+1];
+                sum += (b.x + c.x) * (c.y - b.y);
+            }
+            area = - sum / 2.0;
+        }
+        return area;
+    },
+    
+    /**
+     * APIMethod: getGeodesicArea
+     * Calculate the approximate area of the polygon were it projected onto
+     *     the earth.  Note that this area will be positive if ring is oriented
+     *     clockwise, otherwise it will be negative.
+     *
+     * Parameters:
+     * projection - {<OpenLayers.Projection>} The spatial reference system
+     *     for the geometry coordinates.  If not provided, Geographic/WGS84 is
+     *     assumed.
+     * 
+     * Reference:
+     * Robert. G. Chamberlain and William H. Duquette, "Some Algorithms for
+     *     Polygons on a Sphere", JPL Publication 07-03, Jet Propulsion
+     *     Laboratory, Pasadena, CA, June 2007 http://trs-new.jpl.nasa.gov/dspace/handle/2014/40409
+     *
+     * Returns:
+     * {float} The approximate signed geodesic area of the polygon in square
+     *     meters.
+     */
+    getGeodesicArea: function(projection) {
+        var ring = this;  // so we can work with a clone if needed
+        if(projection) {
+            var gg = new OpenLayers.Projection("EPSG:4326");
+            if(!gg.equals(projection)) {
+                ring = this.clone().transform(projection, gg);
+            }
+        }
+        var area = 0.0;
+        var len = ring.components && ring.components.length;
+        if(len > 2) {
+            var p1, p2;
+            for(var i=0; i<len-1; i++) {
+                p1 = ring.components[i];
+                p2 = ring.components[i+1];
+                area += OpenLayers.Util.rad(p2.x - p1.x) *
+                        (2 + Math.sin(OpenLayers.Util.rad(p1.y)) +
+                        Math.sin(OpenLayers.Util.rad(p2.y)));
+            }
+            area = area * OpenLayers.Util.VincentyConstants.a * OpenLayers.Util.VincentyConstants.a / 2.0;
+        }
+        return area;
+    },
+    
+    /**
+     * Method: containsPoint
+     * Test if a point is inside a linear ring.  For the case where a point
+     *     is coincident with a linear ring edge, returns 1.  Otherwise,
+     *     returns boolean.
+     *
+     * Parameters:
+     * point - {<OpenLayers.Geometry.Point>}
+     *
+     * Returns:
+     * {Boolean | Number} The point is inside the linear ring.  Returns 1 if
+     *     the point is coincident with an edge.  Returns boolean otherwise.
+     */
+    containsPoint: function(point) {
+        var approx = OpenLayers.Number.limitSigDigs;
+        var digs = 14;
+        var px = approx(point.x, digs);
+        var py = approx(point.y, digs);
+        function getX(y, x1, y1, x2, y2) {
+            return (y - y2) * ((x2 - x1) / (y2 - y1)) + x2;
+        }
+        var numSeg = this.components.length - 1;
+        var start, end, x1, y1, x2, y2, cx, cy;
+        var crosses = 0;
+        for(var i=0; i<numSeg; ++i) {
+            start = this.components[i];
+            x1 = approx(start.x, digs);
+            y1 = approx(start.y, digs);
+            end = this.components[i + 1];
+            x2 = approx(end.x, digs);
+            y2 = approx(end.y, digs);
+            
+            /**
+             * The following conditions enforce five edge-crossing rules:
+             *    1. points coincident with edges are considered contained;
+             *    2. an upward edge includes its starting endpoint, and
+             *    excludes its final endpoint;
+             *    3. a downward edge excludes its starting endpoint, and
+             *    includes its final endpoint;
+             *    4. horizontal edges are excluded; and
+             *    5. the edge-ray intersection point must be strictly right
+             *    of the point P.
+             */
+            if(y1 == y2) {
+                // horizontal edge
+                if(py == y1) {
+                    // point on horizontal line
+                    if(x1 <= x2 && (px >= x1 && px <= x2) || // right or vert
+                       x1 >= x2 && (px <= x1 && px >= x2)) { // left or vert
+                        // point on edge
+                        crosses = -1;
+                        break;
+                    }
+                }
+                // ignore other horizontal edges
+                continue;
+            }
+            cx = approx(getX(py, x1, y1, x2, y2), digs);
+            if(cx == px) {
+                // point on line
+                if(y1 < y2 && (py >= y1 && py <= y2) || // upward
+                   y1 > y2 && (py <= y1 && py >= y2)) { // downward
+                    // point on edge
+                    crosses = -1;
+                    break;
+                }
+            }
+            if(cx <= px) {
+                // no crossing to the right
+                continue;
+            }
+            if(x1 != x2 && (cx < Math.min(x1, x2) || cx > Math.max(x1, x2))) {
+                // no crossing
+                continue;
+            }
+            if(y1 < y2 && (py >= y1 && py < y2) || // upward
+               y1 > y2 && (py < y1 && py >= y2)) { // downward
+                ++crosses;
+            }
+        }
+        var contained = (crosses == -1) ?
+            // on edge
+            1 :
+            // even (out) or odd (in)
+            !!(crosses & 1);
+
+        return contained;
+    },
+
+    /**
+     * APIMethod: intersects
+     * Determine if the input geometry intersects this one.
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} Any type of geometry.
+     *
+     * Returns:
+     * {Boolean} The input geometry intersects this one.
+     */
+    intersects: function(geometry) {
+        var intersect = false;
+        if(geometry.CLASS_NAME == "OpenLayers.Geometry.Point") {
+            intersect = this.containsPoint(geometry);
+        } else if(geometry.CLASS_NAME == "OpenLayers.Geometry.LineString") {
+            intersect = geometry.intersects(this);
+        } else if(geometry.CLASS_NAME == "OpenLayers.Geometry.LinearRing") {
+            intersect = OpenLayers.Geometry.LineString.prototype.intersects.apply(
+                this, [geometry]
+            );
+        } else {
+            // check for component intersections
+            for(var i=0, len=geometry.components.length; i<len; ++ i) {
+                intersect = geometry.components[i].intersects(this);
+                if(intersect) {
+                    break;
+                }
+            }
+        }
+        return intersect;
+    },
+
+    /**
+     * APIMethod: getVertices
+     * Return a list of all points in this geometry.
+     *
+     * Parameters:
+     * nodes - {Boolean} For lines, only return vertices that are
+     *     endpoints.  If false, for lines, only vertices that are not
+     *     endpoints will be returned.  If not provided, all vertices will
+     *     be returned.
+     *
+     * Returns:
+     * {Array} A list of all vertices in the geometry.
+     */
+    getVertices: function(nodes) {
+        return (nodes === true) ? [] : this.components.slice(0, this.components.length-1);
+    },
+
+    CLASS_NAME: "OpenLayers.Geometry.LinearRing"
+});
+/* ======================================================================
+    OpenLayers/Geometry/Polygon.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Geometry/Collection.js
+ * @requires OpenLayers/Geometry/LinearRing.js
+ */
+
+/**
+ * Class: OpenLayers.Geometry.Polygon 
+ * Polygon is a collection of Geometry.LinearRings. 
+ * 
+ * Inherits from:
+ *  - <OpenLayers.Geometry.Collection> 
+ *  - <OpenLayers.Geometry> 
+ */
+OpenLayers.Geometry.Polygon = OpenLayers.Class(
+  OpenLayers.Geometry.Collection, {
+
+    /**
+     * Property: componentTypes
+     * {Array(String)} An array of class names representing the types of
+     * components that the collection can include.  A null value means the
+     * component types are not restricted.
+     */
+    componentTypes: ["OpenLayers.Geometry.LinearRing"],
+
+    /**
+     * Constructor: OpenLayers.Geometry.Polygon
+     * Constructor for a Polygon geometry. 
+     * The first ring (this.component[0])is the outer bounds of the polygon and 
+     * all subsequent rings (this.component[1-n]) are internal holes.
+     *
+     *
+     * Parameters:
+     * components - {Array(<OpenLayers.Geometry.LinearRing>)} 
+     */
+
+    /** 
+     * APIMethod: getArea
+     * Calculated by subtracting the areas of the internal holes from the 
+     *   area of the outer hole.
+     * 
+     * Returns:
+     * {float} The area of the geometry
+     */
+    getArea: function() {
+        var area = 0.0;
+        if ( this.components && (this.components.length > 0)) {
+            area += Math.abs(this.components[0].getArea());
+            for (var i=1, len=this.components.length; i<len; i++) {
+                area -= Math.abs(this.components[i].getArea());
+            }
+        }
+        return area;
+    },
+
+    /** 
+     * APIMethod: getGeodesicArea
+     * Calculate the approximate area of the polygon were it projected onto
+     *     the earth.
+     *
+     * Parameters:
+     * projection - {<OpenLayers.Projection>} The spatial reference system
+     *     for the geometry coordinates.  If not provided, Geographic/WGS84 is
+     *     assumed.
+     * 
+     * Reference:
+     * Robert. G. Chamberlain and William H. Duquette, "Some Algorithms for
+     *     Polygons on a Sphere", JPL Publication 07-03, Jet Propulsion
+     *     Laboratory, Pasadena, CA, June 2007 http://trs-new.jpl.nasa.gov/dspace/handle/2014/40409
+     *
+     * Returns:
+     * {float} The approximate geodesic area of the polygon in square meters.
+     */
+    getGeodesicArea: function(projection) {
+        var area = 0.0;
+        if(this.components && (this.components.length > 0)) {
+            area += Math.abs(this.components[0].getGeodesicArea(projection));
+            for(var i=1, len=this.components.length; i<len; i++) {
+                area -= Math.abs(this.components[i].getGeodesicArea(projection));
+            }
+        }
+        return area;
+    },
+
+    /**
+     * Method: containsPoint
+     * Test if a point is inside a polygon.  Points on a polygon edge are
+     *     considered inside.
+     *
+     * Parameters:
+     * point - {<OpenLayers.Geometry.Point>}
+     *
+     * Returns:
+     * {Boolean | Number} The point is inside the polygon.  Returns 1 if the
+     *     point is on an edge.  Returns boolean otherwise.
+     */
+    containsPoint: function(point) {
+        var numRings = this.components.length;
+        var contained = false;
+        if(numRings > 0) {
+            // check exterior ring - 1 means on edge, boolean otherwise
+            contained = this.components[0].containsPoint(point);
+            if(contained !== 1) {
+                if(contained && numRings > 1) {
+                    // check interior rings
+                    var hole;
+                    for(var i=1; i<numRings; ++i) {
+                        hole = this.components[i].containsPoint(point);
+                        if(hole) {
+                            if(hole === 1) {
+                                // on edge
+                                contained = 1;
+                            } else {
+                                // in hole
+                                contained = false;
+                            }                            
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return contained;
+    },
+
+    /**
+     * APIMethod: intersects
+     * Determine if the input geometry intersects this one.
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} Any type of geometry.
+     *
+     * Returns:
+     * {Boolean} The input geometry intersects this one.
+     */
+    intersects: function(geometry) {
+        var intersect = false;
+        var i, len;
+        if(geometry.CLASS_NAME == "OpenLayers.Geometry.Point") {
+            intersect = this.containsPoint(geometry);
+        } else if(geometry.CLASS_NAME == "OpenLayers.Geometry.LineString" ||
+                  geometry.CLASS_NAME == "OpenLayers.Geometry.LinearRing") {
+            // check if rings/linestrings intersect
+            for(i=0, len=this.components.length; i<len; ++i) {
+                intersect = geometry.intersects(this.components[i]);
+                if(intersect) {
+                    break;
+                }
+            }
+            if(!intersect) {
+                // check if this poly contains points of the ring/linestring
+                for(i=0, len=geometry.components.length; i<len; ++i) {
+                    intersect = this.containsPoint(geometry.components[i]);
+                    if(intersect) {
+                        break;
+                    }
+                }
+            }
+        } else {
+            for(i=0, len=geometry.components.length; i<len; ++ i) {
+                intersect = this.intersects(geometry.components[i]);
+                if(intersect) {
+                    break;
+                }
+            }
+        }
+        // check case where this poly is wholly contained by another
+        if(!intersect && geometry.CLASS_NAME == "OpenLayers.Geometry.Polygon") {
+            // exterior ring points will be contained in the other geometry
+            var ring = this.components[0];
+            for(i=0, len=ring.components.length; i<len; ++i) {
+                intersect = geometry.containsPoint(ring.components[i]);
+                if(intersect) {
+                    break;
+                }
+            }
+        }
+        return intersect;
+    },
+
+    /**
+     * APIMethod: distanceTo
+     * Calculate the closest distance between two geometries (on the x-y plane).
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} The target geometry.
+     * options - {Object} Optional properties for configuring the distance
+     *     calculation.
+     *
+     * Valid options:
+     * details - {Boolean} Return details from the distance calculation.
+     *     Default is false.
+     * edge - {Boolean} Calculate the distance from this geometry to the
+     *     nearest edge of the target geometry.  Default is true.  If true,
+     *     calling distanceTo from a geometry that is wholly contained within
+     *     the target will result in a non-zero distance.  If false, whenever
+     *     geometries intersect, calling distanceTo will return 0.  If false,
+     *     details cannot be returned.
+     *
+     * Returns:
+     * {Number | Object} The distance between this geometry and the target.
+     *     If details is true, the return will be an object with distance,
+     *     x0, y0, x1, and y1 properties.  The x0 and y0 properties represent
+     *     the coordinates of the closest point on this geometry. The x1 and y1
+     *     properties represent the coordinates of the closest point on the
+     *     target geometry.
+     */
+    distanceTo: function(geometry, options) {
+        var edge = !(options && options.edge === false);
+        var result;
+        // this is the case where we might not be looking for distance to edge
+        if(!edge && this.intersects(geometry)) {
+            result = 0;
+        } else {
+            result = OpenLayers.Geometry.Collection.prototype.distanceTo.apply(
+                this, [geometry, options]
+            );
+        }
+        return result;
+    },
+
+    CLASS_NAME: "OpenLayers.Geometry.Polygon"
+});
+
+/**
+ * APIMethod: createRegularPolygon
+ * Create a regular polygon around a radius. Useful for creating circles 
+ * and the like.
+ *
+ * Parameters:
+ * origin - {<OpenLayers.Geometry.Point>} center of polygon.
+ * radius - {Float} distance to vertex, in map units.
+ * sides - {Integer} Number of sides. 20 approximates a circle.
+ * rotation - {Float} original angle of rotation, in degrees.
+ */
+OpenLayers.Geometry.Polygon.createRegularPolygon = function(origin, radius, sides, rotation) {  
+    var angle = Math.PI * ((1/sides) - (1/2));
+    if(rotation) {
+        angle += (rotation / 180) * Math.PI;
+    }
+    var rotatedAngle, x, y;
+    var points = [];
+    for(var i=0; i<sides; ++i) {
+        rotatedAngle = angle + (i * 2 * Math.PI / sides);
+        x = origin.x + (radius * Math.cos(rotatedAngle));
+        y = origin.y + (radius * Math.sin(rotatedAngle));
+        points.push(new OpenLayers.Geometry.Point(x, y));
+    }
+    var ring = new OpenLayers.Geometry.LinearRing(points);
+    return new OpenLayers.Geometry.Polygon([ring]);
+};
+/* ======================================================================
     OpenLayers/Format/WFSCapabilities.js
    ====================================================================== */
 
@@ -6668,6 +9668,2709 @@ OpenLayers.Format.WFSCapabilities.v1 = OpenLayers.Class(
 
 });
 /* ======================================================================
+    OpenLayers/Format/WFSCapabilities/v1_1_0.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Format/WFSCapabilities/v1.js
+ * @requires OpenLayers/Format/OWSCommon/v1.js
+ */
+
+/**
+ * Class: OpenLayers.Format.WFSCapabilities/v1_1_0
+ * Read WFS Capabilities version 1.1.0.
+ * 
+ * Inherits from:
+ *  - <OpenLayers.Format.WFSCapabilities>
+ */
+OpenLayers.Format.WFSCapabilities.v1_1_0 = OpenLayers.Class(
+    OpenLayers.Format.WFSCapabilities.v1, {
+
+    /**
+     * Property: regExes
+     * Compiled regular expressions for manipulating strings.
+     */
+    regExes: {
+        trimSpace: (/^\s*|\s*$/g),
+        removeSpace: (/\s*/g),
+        splitSpace: (/\s+/),
+        trimComma: (/\s*,\s*/g)
+    },
+    
+    /**
+     * Constructor: OpenLayers.Format.WFSCapabilities.v1_1_0
+     * Create a new parser for WFS capabilities version 1.1.0.
+     *
+     * Parameters:
+     * options - {Object} An optional object whose properties will be set on
+     *     this instance.
+     */
+
+    /**
+     * Property: readers
+     * Contains public functions, grouped by namespace prefix, that will
+     *     be applied when a namespaced node is found matching the function
+     *     name.  The function will be applied in the scope of this parser
+     *     with two arguments: the node being read and a context object passed
+     *     from the parent.
+     */
+    readers: {
+        "wfs": OpenLayers.Util.applyDefaults({
+            "DefaultSRS": function(node, obj) {
+                var defaultSRS = this.getChildValue(node);
+                if (defaultSRS) {
+                    obj.srs = defaultSRS;
+                }
+            }
+        }, OpenLayers.Format.WFSCapabilities.v1.prototype.readers["wfs"]),
+        "ows": OpenLayers.Format.OWSCommon.v1.prototype.readers.ows
+    },
+
+    CLASS_NAME: "OpenLayers.Format.WFSCapabilities.v1_1_0" 
+
+});
+/* ======================================================================
+    OpenLayers/Feature.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+
+/**
+ * @requires OpenLayers/BaseTypes/Class.js
+ * @requires OpenLayers/Util.js
+ */
+
+/**
+ * Class: OpenLayers.Feature
+ * Features are combinations of geography and attributes. The OpenLayers.Feature
+ *     class specifically combines a marker and a lonlat.
+ */
+OpenLayers.Feature = OpenLayers.Class({
+
+    /** 
+     * Property: layer 
+     * {<OpenLayers.Layer>} 
+     */
+    layer: null,
+
+    /** 
+     * Property: id 
+     * {String} 
+     */
+    id: null,
+    
+    /** 
+     * Property: lonlat 
+     * {<OpenLayers.LonLat>} 
+     */
+    lonlat: null,
+
+    /** 
+     * Property: data 
+     * {Object} 
+     */
+    data: null,
+
+    /** 
+     * Property: marker 
+     * {<OpenLayers.Marker>} 
+     */
+    marker: null,
+
+    /**
+     * APIProperty: popupClass
+     * {<OpenLayers.Class>} The class which will be used to instantiate
+     *     a new Popup. Default is <OpenLayers.Popup.Anchored>.
+     */
+    popupClass: null,
+
+    /** 
+     * Property: popup 
+     * {<OpenLayers.Popup>} 
+     */
+    popup: null,
+
+    /** 
+     * Constructor: OpenLayers.Feature
+     * Constructor for features.
+     *
+     * Parameters:
+     * layer - {<OpenLayers.Layer>} 
+     * lonlat - {<OpenLayers.LonLat>} 
+     * data - {Object} 
+     * 
+     * Returns:
+     * {<OpenLayers.Feature>}
+     */
+    initialize: function(layer, lonlat, data) {
+        this.layer = layer;
+        this.lonlat = lonlat;
+        this.data = (data != null) ? data : {};
+        this.id = OpenLayers.Util.createUniqueID(this.CLASS_NAME + "_"); 
+    },
+
+    /** 
+     * Method: destroy
+     * nullify references to prevent circular references and memory leaks
+     */
+    destroy: function() {
+
+        //remove the popup from the map
+        if ((this.layer != null) && (this.layer.map != null)) {
+            if (this.popup != null) {
+                this.layer.map.removePopup(this.popup);
+            }
+        }
+        // remove the marker from the layer
+        if (this.layer != null && this.marker != null) {
+            this.layer.removeMarker(this.marker);
+        }
+
+        this.layer = null;
+        this.id = null;
+        this.lonlat = null;
+        this.data = null;
+        if (this.marker != null) {
+            this.destroyMarker(this.marker);
+            this.marker = null;
+        }
+        if (this.popup != null) {
+            this.destroyPopup(this.popup);
+            this.popup = null;
+        }
+    },
+    
+    /**
+     * Method: onScreen
+     * 
+     * Returns:
+     * {Boolean} Whether or not the feature is currently visible on screen
+     *           (based on its 'lonlat' property)
+     */
+    onScreen:function() {
+        
+        var onScreen = false;
+        if ((this.layer != null) && (this.layer.map != null)) {
+            var screenBounds = this.layer.map.getExtent();
+            onScreen = screenBounds.containsLonLat(this.lonlat);
+        }    
+        return onScreen;
+    },
+    
+
+    /**
+     * Method: createMarker
+     * Based on the data associated with the Feature, create and return a marker object.
+     *
+     * Returns: 
+     * {<OpenLayers.Marker>} A Marker Object created from the 'lonlat' and 'icon' properties
+     *          set in this.data. If no 'lonlat' is set, returns null. If no
+     *          'icon' is set, OpenLayers.Marker() will load the default image.
+     *          
+     *          Note - this.marker is set to return value
+     * 
+     */
+    createMarker: function() {
+
+        if (this.lonlat != null) {
+            this.marker = new OpenLayers.Marker(this.lonlat, this.data.icon);
+        }
+        return this.marker;
+    },
+
+    /**
+     * Method: destroyMarker
+     * Destroys marker.
+     * If user overrides the createMarker() function, s/he should be able
+     *   to also specify an alternative function for destroying it
+     */
+    destroyMarker: function() {
+        this.marker.destroy();  
+    },
+
+    /**
+     * Method: createPopup
+     * Creates a popup object created from the 'lonlat', 'popupSize',
+     *     and 'popupContentHTML' properties set in this.data. It uses
+     *     this.marker.icon as default anchor. 
+     *  
+     *  If no 'lonlat' is set, returns null. 
+     *  If no this.marker has been created, no anchor is sent.
+     *
+     *  Note - the returned popup object is 'owned' by the feature, so you
+     *      cannot use the popup's destroy method to discard the popup.
+     *      Instead, you must use the feature's destroyPopup
+     * 
+     *  Note - this.popup is set to return value
+     * 
+     * Parameters: 
+     * closeBox - {Boolean} create popup with closebox or not
+     * 
+     * Returns:
+     * {<OpenLayers.Popup>} Returns the created popup, which is also set
+     *     as 'popup' property of this feature. Will be of whatever type
+     *     specified by this feature's 'popupClass' property, but must be
+     *     of type <OpenLayers.Popup>.
+     * 
+     */
+    createPopup: function(closeBox) {
+
+        if (this.lonlat != null) {
+            if (!this.popup) {
+                var anchor = (this.marker) ? this.marker.icon : null;
+                var popupClass = this.popupClass ? 
+                    this.popupClass : OpenLayers.Popup.Anchored;
+                this.popup = new popupClass(this.id + "_popup", 
+                                            this.lonlat,
+                                            this.data.popupSize,
+                                            this.data.popupContentHTML,
+                                            anchor, 
+                                            closeBox); 
+            }    
+            if (this.data.overflow != null) {
+                this.popup.contentDiv.style.overflow = this.data.overflow;
+            }    
+            
+            this.popup.feature = this;
+        }        
+        return this.popup;
+    },
+
+    
+    /**
+     * Method: destroyPopup
+     * Destroys the popup created via createPopup.
+     *
+     * As with the marker, if user overrides the createPopup() function, s/he 
+     *   should also be able to override the destruction
+     */
+    destroyPopup: function() {
+        if (this.popup) {
+            this.popup.feature = null;
+            this.popup.destroy();
+            this.popup = null;
+        }    
+    },
+
+    CLASS_NAME: "OpenLayers.Feature"
+});
+/* ======================================================================
+    OpenLayers/Feature/Vector.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+// TRASH THIS
+OpenLayers.State = {
+    /** states */
+    UNKNOWN: 'Unknown',
+    INSERT: 'Insert',
+    UPDATE: 'Update',
+    DELETE: 'Delete'
+};
+
+/**
+ * @requires OpenLayers/Feature.js
+ * @requires OpenLayers/Util.js
+ */
+
+/**
+ * Class: OpenLayers.Feature.Vector
+ * Vector features use the OpenLayers.Geometry classes as geometry description.
+ * They have an 'attributes' property, which is the data object, and a 'style'
+ * property, the default values of which are defined in the 
+ * <OpenLayers.Feature.Vector.style> objects.
+ * 
+ * Inherits from:
+ *  - <OpenLayers.Feature>
+ */
+OpenLayers.Feature.Vector = OpenLayers.Class(OpenLayers.Feature, {
+
+    /** 
+     * Property: fid 
+     * {String} 
+     */
+    fid: null,
+    
+    /** 
+     * APIProperty: geometry 
+     * {<OpenLayers.Geometry>} 
+     */
+    geometry: null,
+
+    /** 
+     * APIProperty: attributes 
+     * {Object} This object holds arbitrary, serializable properties that
+     *     describe the feature.
+     */
+    attributes: null,
+
+    /**
+     * Property: bounds
+     * {<OpenLayers.Bounds>} The box bounding that feature's geometry, that
+     *     property can be set by an <OpenLayers.Format> object when
+     *     deserializing the feature, so in most cases it represents an
+     *     information set by the server. 
+     */
+    bounds: null,
+
+    /** 
+     * Property: state 
+     * {String} 
+     */
+    state: null,
+    
+    /** 
+     * APIProperty: style 
+     * {Object} 
+     */
+    style: null,
+
+    /**
+     * APIProperty: url
+     * {String} If this property is set it will be taken into account by
+     *     {<OpenLayers.HTTP>} when updating or deleting the feature.
+     */
+    url: null,
+    
+    /**
+     * Property: renderIntent
+     * {String} rendering intent currently being used
+     */
+    renderIntent: "default",
+    
+    /**
+     * APIProperty: modified
+     * {Object} An object with the originals of the geometry and attributes of
+     * the feature, if they were changed. Currently this property is only read
+     * by <OpenLayers.Format.WFST.v1>, and written by
+     * <OpenLayers.Control.ModifyFeature>, which sets the geometry property.
+     * Applications can set the originals of modified attributes in the
+     * attributes property. Note that applications have to check if this
+     * object and the attributes property is already created before using it.
+     * After a change made with ModifyFeature, this object could look like
+     *
+     * (code)
+     * {
+     *     geometry: >Object
+     * }
+     * (end)
+     *
+     * When an application has made changes to feature attributes, it could
+     * have set the attributes to something like this:
+     *
+     * (code)
+     * {
+     *     attributes: {
+     *         myAttribute: "original"
+     *     }
+     * }
+     * (end)
+     *
+     * Note that <OpenLayers.Format.WFST.v1> only checks for truthy values in
+     * *modified.geometry* and the attribute names in *modified.attributes*,
+     * but it is recommended to set the original values (and not just true) as
+     * attribute value, so applications could use this information to undo
+     * changes.
+     */
+    modified: null,
+
+    /** 
+     * Constructor: OpenLayers.Feature.Vector
+     * Create a vector feature. 
+     * 
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} The geometry that this feature
+     *     represents.
+     * attributes - {Object} An optional object that will be mapped to the
+     *     <attributes> property. 
+     * style - {Object} An optional style object.
+     */
+    initialize: function(geometry, attributes, style) {
+        OpenLayers.Feature.prototype.initialize.apply(this,
+                                                      [null, null, attributes]);
+        this.lonlat = null;
+        this.geometry = geometry ? geometry : null;
+        this.state = null;
+        this.attributes = {};
+        if (attributes) {
+            this.attributes = OpenLayers.Util.extend(this.attributes,
+                                                     attributes);
+        }
+        this.style = style ? style : null; 
+    },
+    
+    /** 
+     * Method: destroy
+     * nullify references to prevent circular references and memory leaks
+     */
+    destroy: function() {
+        if (this.layer) {
+            this.layer.removeFeatures(this);
+            this.layer = null;
+        }
+            
+        this.geometry = null;
+        this.modified = null;
+        OpenLayers.Feature.prototype.destroy.apply(this, arguments);
+    },
+    
+    /**
+     * Method: clone
+     * Create a clone of this vector feature.  Does not set any non-standard
+     *     properties.
+     *
+     * Returns:
+     * {<OpenLayers.Feature.Vector>} An exact clone of this vector feature.
+     */
+    clone: function () {
+        return new OpenLayers.Feature.Vector(
+            this.geometry ? this.geometry.clone() : null,
+            this.attributes,
+            this.style);
+    },
+
+    /**
+     * Method: onScreen
+     * Determine whether the feature is within the map viewport.  This method
+     *     tests for an intersection between the geometry and the viewport
+     *     bounds.  If a more efficient but less precise geometry bounds
+     *     intersection is desired, call the method with the boundsOnly
+     *     parameter true.
+     *
+     * Parameters:
+     * boundsOnly - {Boolean} Only test whether a feature's bounds intersects
+     *     the viewport bounds.  Default is false.  If false, the feature's
+     *     geometry must intersect the viewport for onScreen to return true.
+     * 
+     * Returns:
+     * {Boolean} The feature is currently visible on screen (optionally
+     *     based on its bounds if boundsOnly is true).
+     */
+    onScreen:function(boundsOnly) {
+        var onScreen = false;
+        if(this.layer && this.layer.map) {
+            var screenBounds = this.layer.map.getExtent();
+            if(boundsOnly) {
+                var featureBounds = this.geometry.getBounds();
+                onScreen = screenBounds.intersectsBounds(featureBounds);
+            } else {
+                var screenPoly = screenBounds.toGeometry();
+                onScreen = screenPoly.intersects(this.geometry);
+            }
+        }    
+        return onScreen;
+    },
+
+    /**
+     * Method: getVisibility
+     * Determine whether the feature is displayed or not. It may not displayed
+     *     because:
+     *     - its style display property is set to 'none',
+     *     - it doesn't belong to any layer,
+     *     - the styleMap creates a symbolizer with display property set to 'none'
+     *          for it,
+     *     - the layer which it belongs to is not visible.
+     * 
+     * Returns:
+     * {Boolean} The feature is currently displayed.
+     */
+    getVisibility: function() {
+        return !(this.style && this.style.display == 'none' ||
+                 !this.layer ||
+                 this.layer && this.layer.styleMap &&
+                 this.layer.styleMap.createSymbolizer(this, this.renderIntent).display == 'none' ||
+                 this.layer && !this.layer.getVisibility());
+    },
+    
+    /**
+     * Method: createMarker
+     * HACK - we need to decide if all vector features should be able to
+     *     create markers
+     * 
+     * Returns:
+     * {<OpenLayers.Marker>} For now just returns null
+     */
+    createMarker: function() {
+        return null;
+    },
+
+    /**
+     * Method: destroyMarker
+     * HACK - we need to decide if all vector features should be able to
+     *     delete markers
+     * 
+     * If user overrides the createMarker() function, s/he should be able
+     *   to also specify an alternative function for destroying it
+     */
+    destroyMarker: function() {
+        // pass
+    },
+
+    /**
+     * Method: createPopup
+     * HACK - we need to decide if all vector features should be able to
+     *     create popups
+     * 
+     * Returns:
+     * {<OpenLayers.Popup>} For now just returns null
+     */
+    createPopup: function() {
+        return null;
+    },
+
+    /**
+     * Method: atPoint
+     * Determins whether the feature intersects with the specified location.
+     * 
+     * Parameters: 
+     * lonlat - {<OpenLayers.LonLat>|Object} OpenLayers.LonLat or an
+     *     object with a 'lon' and 'lat' properties.
+     * toleranceLon - {float} Optional tolerance in Geometric Coords
+     * toleranceLat - {float} Optional tolerance in Geographic Coords
+     * 
+     * Returns:
+     * {Boolean} Whether or not the feature is at the specified location
+     */
+    atPoint: function(lonlat, toleranceLon, toleranceLat) {
+        var atPoint = false;
+        if(this.geometry) {
+            atPoint = this.geometry.atPoint(lonlat, toleranceLon, 
+                                                    toleranceLat);
+        }
+        return atPoint;
+    },
+
+    /**
+     * Method: destroyPopup
+     * HACK - we need to decide if all vector features should be able to
+     * delete popups
+     */
+    destroyPopup: function() {
+        // pass
+    },
+
+    /**
+     * Method: move
+     * Moves the feature and redraws it at its new location
+     *
+     * Parameters:
+     * location - {<OpenLayers.LonLat> or <OpenLayers.Pixel>} the
+     *         location to which to move the feature.
+     */
+    move: function(location) {
+
+        if(!this.layer || !this.geometry.move){
+            //do nothing if no layer or immoveable geometry
+            return undefined;
+        }
+
+        var pixel;
+        if (location.CLASS_NAME == "OpenLayers.LonLat") {
+            pixel = this.layer.getViewPortPxFromLonLat(location);
+        } else {
+            pixel = location;
+        }
+        
+        var lastPixel = this.layer.getViewPortPxFromLonLat(this.geometry.getBounds().getCenterLonLat());
+        var res = this.layer.map.getResolution();
+        this.geometry.move(res * (pixel.x - lastPixel.x),
+                           res * (lastPixel.y - pixel.y));
+        this.layer.drawFeature(this);
+        return lastPixel;
+    },
+    
+    /**
+     * Method: toState
+     * Sets the new state
+     *
+     * Parameters:
+     * state - {String} 
+     */
+    toState: function(state) {
+        if (state == OpenLayers.State.UPDATE) {
+            switch (this.state) {
+                case OpenLayers.State.UNKNOWN:
+                case OpenLayers.State.DELETE:
+                    this.state = state;
+                    break;
+                case OpenLayers.State.UPDATE:
+                case OpenLayers.State.INSERT:
+                    break;
+            }
+        } else if (state == OpenLayers.State.INSERT) {
+            switch (this.state) {
+                case OpenLayers.State.UNKNOWN:
+                    break;
+                default:
+                    this.state = state;
+                    break;
+            }
+        } else if (state == OpenLayers.State.DELETE) {
+            switch (this.state) {
+                case OpenLayers.State.INSERT:
+                    // the feature should be destroyed
+                    break;
+                case OpenLayers.State.DELETE:
+                    break;
+                case OpenLayers.State.UNKNOWN:
+                case OpenLayers.State.UPDATE:
+                    this.state = state;
+                    break;
+            }
+        } else if (state == OpenLayers.State.UNKNOWN) {
+            this.state = state;
+        }
+    },
+    
+    CLASS_NAME: "OpenLayers.Feature.Vector"
+});
+
+
+/**
+ * Constant: OpenLayers.Feature.Vector.style
+ * OpenLayers features can have a number of style attributes. The 'default' 
+ *     style will typically be used if no other style is specified. These
+ *     styles correspond for the most part, to the styling properties defined
+ *     by the SVG standard. 
+ *     Information on fill properties: http://www.w3.org/TR/SVG/painting.html#FillProperties
+ *     Information on stroke properties: http://www.w3.org/TR/SVG/painting.html#StrokeProperties
+ *
+ * Symbolizer properties:
+ * fill - {Boolean} Set to false if no fill is desired.
+ * fillColor - {String} Hex fill color.  Default is "#ee9900".
+ * fillOpacity - {Number} Fill opacity (0-1).  Default is 0.4 
+ * stroke - {Boolean} Set to false if no stroke is desired.
+ * strokeColor - {String} Hex stroke color.  Default is "#ee9900".
+ * strokeOpacity - {Number} Stroke opacity (0-1).  Default is 1.
+ * strokeWidth - {Number} Pixel stroke width.  Default is 1.
+ * strokeLinecap - {String} Stroke cap type.  Default is "round".  [butt | round | square]
+ * strokeDashstyle - {String} Stroke dash style.  Default is "solid". [dot | dash | dashdot | longdash | longdashdot | solid]
+ * graphic - {Boolean} Set to false if no graphic is desired.
+ * pointRadius - {Number} Pixel point radius.  Default is 6.
+ * pointerEvents - {String}  Default is "visiblePainted".
+ * cursor - {String} Default is "".
+ * externalGraphic - {String} Url to an external graphic that will be used for rendering points.
+ * graphicWidth - {Number} Pixel width for sizing an external graphic.
+ * graphicHeight - {Number} Pixel height for sizing an external graphic.
+ * graphicOpacity - {Number} Opacity (0-1) for an external graphic.
+ * graphicXOffset - {Number} Pixel offset along the positive x axis for displacing an external graphic.
+ * graphicYOffset - {Number} Pixel offset along the positive y axis for displacing an external graphic.
+ * rotation - {Number} For point symbolizers, this is the rotation of a graphic in the clockwise direction about its center point (or any point off center as specified by graphicXOffset and graphicYOffset).
+ * graphicZIndex - {Number} The integer z-index value to use in rendering.
+ * graphicName - {String} Named graphic to use when rendering points.  Supported values include "circle" (default),
+ *     "square", "star", "x", "cross", "triangle".
+ * graphicTitle - {String} Tooltip when hovering over a feature. *deprecated*, use title instead
+ * title - {String} Tooltip when hovering over a feature. Not supported by the canvas renderer.
+ * backgroundGraphic - {String} Url to a graphic to be used as the background under an externalGraphic.
+ * backgroundGraphicZIndex - {Number} The integer z-index value to use in rendering the background graphic.
+ * backgroundXOffset - {Number} The x offset (in pixels) for the background graphic.
+ * backgroundYOffset - {Number} The y offset (in pixels) for the background graphic.
+ * backgroundHeight - {Number} The height of the background graphic.  If not provided, the graphicHeight will be used.
+ * backgroundWidth - {Number} The width of the background width.  If not provided, the graphicWidth will be used.
+ * label - {String} The text for an optional label. For browsers that use the canvas renderer, this requires either
+ *     fillText or mozDrawText to be available.
+ * labelAlign - {String} Label alignment. This specifies the insertion point relative to the text. It is a string
+ *     composed of two characters. The first character is for the horizontal alignment, the second for the vertical
+ *     alignment. Valid values for horizontal alignment: "l"=left, "c"=center, "r"=right. Valid values for vertical
+ *     alignment: "t"=top, "m"=middle, "b"=bottom. Example values: "lt", "cm", "rb". Default is "cm".
+ * labelXOffset - {Number} Pixel offset along the positive x axis for displacing the label. Not supported by the canvas renderer.
+ * labelYOffset - {Number} Pixel offset along the positive y axis for displacing the label. Not supported by the canvas renderer.
+ * labelSelect - {Boolean} If set to true, labels will be selectable using SelectFeature or similar controls.
+ *     Default is false.
+ * labelOutlineColor - {String} The color of the label outline. Default is 'white'. Only supported by the canvas & SVG renderers.
+ * labelOutlineWidth - {Number} The width of the label outline. Default is 3, set to 0 or null to disable. Only supported by the  SVG renderers.
+ * labelOutlineOpacity - {Number} The opacity (0-1) of the label outline. Default is fontOpacity. Only supported by the canvas & SVG renderers.
+ * fontColor - {String} The font color for the label, to be provided like CSS.
+ * fontOpacity - {Number} Opacity (0-1) for the label
+ * fontFamily - {String} The font family for the label, to be provided like in CSS.
+ * fontSize - {String} The font size for the label, to be provided like in CSS.
+ * fontStyle - {String} The font style for the label, to be provided like in CSS.
+ * fontWeight - {String} The font weight for the label, to be provided like in CSS.
+ * display - {String} Symbolizers will have no effect if display is set to "none".  All other values have no effect.
+ */ 
+OpenLayers.Feature.Vector.style = {
+    'default': {
+        fillColor: "#ee9900",
+        fillOpacity: 0.4, 
+        hoverFillColor: "white",
+        hoverFillOpacity: 0.8,
+        strokeColor: "#ee9900",
+        strokeOpacity: 1,
+        strokeWidth: 1,
+        strokeLinecap: "round",
+        strokeDashstyle: "solid",
+        hoverStrokeColor: "red",
+        hoverStrokeOpacity: 1,
+        hoverStrokeWidth: 0.2,
+        pointRadius: 6,
+        hoverPointRadius: 1,
+        hoverPointUnit: "%",
+        pointerEvents: "visiblePainted",
+        cursor: "inherit",
+        fontColor: "#000000",
+        labelAlign: "cm",
+        labelOutlineColor: "white",
+        labelOutlineWidth: 3
+    },
+    'select': {
+        fillColor: "blue",
+        fillOpacity: 0.4, 
+        hoverFillColor: "white",
+        hoverFillOpacity: 0.8,
+        strokeColor: "blue",
+        strokeOpacity: 1,
+        strokeWidth: 2,
+        strokeLinecap: "round",
+        strokeDashstyle: "solid",
+        hoverStrokeColor: "red",
+        hoverStrokeOpacity: 1,
+        hoverStrokeWidth: 0.2,
+        pointRadius: 6,
+        hoverPointRadius: 1,
+        hoverPointUnit: "%",
+        pointerEvents: "visiblePainted",
+        cursor: "pointer",
+        fontColor: "#000000",
+        labelAlign: "cm",
+        labelOutlineColor: "white",
+        labelOutlineWidth: 3
+
+    },
+    'temporary': {
+        fillColor: "#66cccc",
+        fillOpacity: 0.2, 
+        hoverFillColor: "white",
+        hoverFillOpacity: 0.8,
+        strokeColor: "#66cccc",
+        strokeOpacity: 1,
+        strokeLinecap: "round",
+        strokeWidth: 2,
+        strokeDashstyle: "solid",
+        hoverStrokeColor: "red",
+        hoverStrokeOpacity: 1,
+        hoverStrokeWidth: 0.2,
+        pointRadius: 6,
+        hoverPointRadius: 1,
+        hoverPointUnit: "%",
+        pointerEvents: "visiblePainted",
+        cursor: "inherit",
+        fontColor: "#000000",
+        labelAlign: "cm",
+        labelOutlineColor: "white",
+        labelOutlineWidth: 3
+
+    },
+    'delete': {
+        display: "none"
+    }
+};    
+/* ======================================================================
+    OpenLayers/Geometry/MultiLineString.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Geometry/Collection.js
+ * @requires OpenLayers/Geometry/LineString.js
+ */
+
+/**
+ * Class: OpenLayers.Geometry.MultiLineString
+ * A MultiLineString is a geometry with multiple <OpenLayers.Geometry.LineString>
+ * components.
+ * 
+ * Inherits from:
+ *  - <OpenLayers.Geometry.Collection>
+ *  - <OpenLayers.Geometry> 
+ */
+OpenLayers.Geometry.MultiLineString = OpenLayers.Class(
+  OpenLayers.Geometry.Collection, {
+
+    /**
+     * Property: componentTypes
+     * {Array(String)} An array of class names representing the types of
+     * components that the collection can include.  A null value means the
+     * component types are not restricted.
+     */
+    componentTypes: ["OpenLayers.Geometry.LineString"],
+
+    /**
+     * Constructor: OpenLayers.Geometry.MultiLineString
+     * Constructor for a MultiLineString Geometry.
+     *
+     * Parameters: 
+     * components - {Array(<OpenLayers.Geometry.LineString>)} 
+     *
+     */
+    
+    /**
+     * Method: split
+     * Use this geometry (the source) to attempt to split a target geometry.
+     * 
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} The target geometry.
+     * options - {Object} Properties of this object will be used to determine
+     *     how the split is conducted.
+     *
+     * Valid options:
+     * mutual - {Boolean} Split the source geometry in addition to the target
+     *     geometry.  Default is false.
+     * edge - {Boolean} Allow splitting when only edges intersect.  Default is
+     *     true.  If false, a vertex on the source must be within the tolerance
+     *     distance of the intersection to be considered a split.
+     * tolerance - {Number} If a non-null value is provided, intersections
+     *     within the tolerance distance of an existing vertex on the source
+     *     will be assumed to occur at the vertex.
+     * 
+     * Returns:
+     * {Array} A list of geometries (of this same type as the target) that
+     *     result from splitting the target with the source geometry.  The
+     *     source and target geometry will remain unmodified.  If no split
+     *     results, null will be returned.  If mutual is true and a split
+     *     results, return will be an array of two arrays - the first will be
+     *     all geometries that result from splitting the source geometry and
+     *     the second will be all geometries that result from splitting the
+     *     target geometry.
+     */
+    split: function(geometry, options) {
+        var results = null;
+        var mutual = options && options.mutual;
+        var splits, sourceLine, sourceLines, sourceSplit, targetSplit;
+        var sourceParts = [];
+        var targetParts = [geometry];
+        for(var i=0, len=this.components.length; i<len; ++i) {
+            sourceLine = this.components[i];
+            sourceSplit = false;
+            for(var j=0; j < targetParts.length; ++j) { 
+                splits = sourceLine.split(targetParts[j], options);
+                if(splits) {
+                    if(mutual) {
+                        sourceLines = splits[0];
+                        for(var k=0, klen=sourceLines.length; k<klen; ++k) {
+                            if(k===0 && sourceParts.length) {
+                                sourceParts[sourceParts.length-1].addComponent(
+                                    sourceLines[k]
+                                );
+                            } else {
+                                sourceParts.push(
+                                    new OpenLayers.Geometry.MultiLineString([
+                                        sourceLines[k]
+                                    ])
+                                );
+                            }
+                        }
+                        sourceSplit = true;
+                        splits = splits[1];
+                    }
+                    if(splits.length) {
+                        // splice in new target parts
+                        splits.unshift(j, 1);
+                        Array.prototype.splice.apply(targetParts, splits);
+                        break;
+                    }
+                }
+            }
+            if(!sourceSplit) {
+                // source line was not hit
+                if(sourceParts.length) {
+                    // add line to existing multi
+                    sourceParts[sourceParts.length-1].addComponent(
+                        sourceLine.clone()
+                    );
+                } else {
+                    // create a fresh multi
+                    sourceParts = [
+                        new OpenLayers.Geometry.MultiLineString(
+                            sourceLine.clone()
+                        )
+                    ];
+                }
+            }
+        }
+        if(sourceParts && sourceParts.length > 1) {
+            sourceSplit = true;
+        } else {
+            sourceParts = [];
+        }
+        if(targetParts && targetParts.length > 1) {
+            targetSplit = true;
+        } else {
+            targetParts = [];
+        }
+        if(sourceSplit || targetSplit) {
+            if(mutual) {
+                results = [sourceParts, targetParts];
+            } else {
+                results = targetParts;
+            }
+        }
+        return results;
+    },
+    
+    /**
+     * Method: splitWith
+     * Split this geometry (the target) with the given geometry (the source).
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} A geometry used to split this
+     *     geometry (the source).
+     * options - {Object} Properties of this object will be used to determine
+     *     how the split is conducted.
+     *
+     * Valid options:
+     * mutual - {Boolean} Split the source geometry in addition to the target
+     *     geometry.  Default is false.
+     * edge - {Boolean} Allow splitting when only edges intersect.  Default is
+     *     true.  If false, a vertex on the source must be within the tolerance
+     *     distance of the intersection to be considered a split.
+     * tolerance - {Number} If a non-null value is provided, intersections
+     *     within the tolerance distance of an existing vertex on the source
+     *     will be assumed to occur at the vertex.
+     * 
+     * Returns:
+     * {Array} A list of geometries (of this same type as the target) that
+     *     result from splitting the target with the source geometry.  The
+     *     source and target geometry will remain unmodified.  If no split
+     *     results, null will be returned.  If mutual is true and a split
+     *     results, return will be an array of two arrays - the first will be
+     *     all geometries that result from splitting the source geometry and
+     *     the second will be all geometries that result from splitting the
+     *     target geometry.
+     */
+    splitWith: function(geometry, options) {
+        var results = null;
+        var mutual = options && options.mutual;
+        var splits, targetLine, sourceLines, sourceSplit, targetSplit, sourceParts, targetParts;
+        if(geometry instanceof OpenLayers.Geometry.LineString) {
+            targetParts = [];
+            sourceParts = [geometry];
+            for(var i=0, len=this.components.length; i<len; ++i) {
+                targetSplit = false;
+                targetLine = this.components[i];
+                for(var j=0; j<sourceParts.length; ++j) {
+                    splits = sourceParts[j].split(targetLine, options);
+                    if(splits) {
+                        if(mutual) {
+                            sourceLines = splits[0];
+                            if(sourceLines.length) {
+                                // splice in new source parts
+                                sourceLines.unshift(j, 1);
+                                Array.prototype.splice.apply(sourceParts, sourceLines);
+                                j += sourceLines.length - 2;
+                            }
+                            splits = splits[1];
+                            if(splits.length === 0) {
+                                splits = [targetLine.clone()];
+                            }
+                        }
+                        for(var k=0, klen=splits.length; k<klen; ++k) {
+                            if(k===0 && targetParts.length) {
+                                targetParts[targetParts.length-1].addComponent(
+                                    splits[k]
+                                );
+                            } else {
+                                targetParts.push(
+                                    new OpenLayers.Geometry.MultiLineString([
+                                        splits[k]
+                                    ])
+                                );
+                            }
+                        }
+                        targetSplit = true;                    
+                    }
+                }
+                if(!targetSplit) {
+                    // target component was not hit
+                    if(targetParts.length) {
+                        // add it to any existing multi-line
+                        targetParts[targetParts.length-1].addComponent(
+                            targetLine.clone()
+                        );
+                    } else {
+                        // or start with a fresh multi-line
+                        targetParts = [
+                            new OpenLayers.Geometry.MultiLineString([
+                                targetLine.clone()
+                            ])
+                        ];
+                    }
+                    
+                }
+            }
+        } else {
+            results = geometry.split(this);
+        }
+        if(sourceParts && sourceParts.length > 1) {
+            sourceSplit = true;
+        } else {
+            sourceParts = [];
+        }
+        if(targetParts && targetParts.length > 1) {
+            targetSplit = true;
+        } else {
+            targetParts = [];
+        }
+        if(sourceSplit || targetSplit) {
+            if(mutual) {
+                results = [sourceParts, targetParts];
+            } else {
+                results = targetParts;
+            }
+        }
+        return results;
+    },
+
+    CLASS_NAME: "OpenLayers.Geometry.MultiLineString"
+});
+/* ======================================================================
+    OpenLayers/Geometry/MultiPolygon.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Geometry/Collection.js
+ * @requires OpenLayers/Geometry/Polygon.js
+ */
+
+/**
+ * Class: OpenLayers.Geometry.MultiPolygon
+ * MultiPolygon is a geometry with multiple <OpenLayers.Geometry.Polygon>
+ * components.  Create a new instance with the <OpenLayers.Geometry.MultiPolygon>
+ * constructor.
+ * 
+ * Inherits from:
+ *  - <OpenLayers.Geometry.Collection>
+ */
+OpenLayers.Geometry.MultiPolygon = OpenLayers.Class(
+  OpenLayers.Geometry.Collection, {
+
+    /**
+     * Property: componentTypes
+     * {Array(String)} An array of class names representing the types of
+     * components that the collection can include.  A null value means the
+     * component types are not restricted.
+     */
+    componentTypes: ["OpenLayers.Geometry.Polygon"],
+
+    /**
+     * Constructor: OpenLayers.Geometry.MultiPolygon
+     * Create a new MultiPolygon geometry
+     *
+     * Parameters:
+     * components - {Array(<OpenLayers.Geometry.Polygon>)} An array of polygons
+     *              used to generate the MultiPolygon
+     *
+     */
+
+    CLASS_NAME: "OpenLayers.Geometry.MultiPolygon"
+});
+/* ======================================================================
+    OpenLayers/Format/GML.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Format/XML.js
+ * @requires OpenLayers/Feature/Vector.js
+ * @requires OpenLayers/Geometry/Point.js
+ * @requires OpenLayers/Geometry/MultiPoint.js
+ * @requires OpenLayers/Geometry/LineString.js
+ * @requires OpenLayers/Geometry/MultiLineString.js
+ * @requires OpenLayers/Geometry/Polygon.js
+ * @requires OpenLayers/Geometry/MultiPolygon.js
+ */
+
+/**
+ * Class: OpenLayers.Format.GML
+ * Read/Write GML. Create a new instance with the <OpenLayers.Format.GML>
+ *     constructor.  Supports the GML simple features profile.
+ * 
+ * Inherits from:
+ *  - <OpenLayers.Format.XML>
+ */
+OpenLayers.Format.GML = OpenLayers.Class(OpenLayers.Format.XML, {
+    
+    /**
+     * APIProperty: featureNS
+     * {String} Namespace used for feature attributes.  Default is
+     *     "http://mapserver.gis.umn.edu/mapserver".
+     */
+    featureNS: "http://mapserver.gis.umn.edu/mapserver",
+    
+    /**
+     * APIProperty: featurePrefix
+     * {String} Namespace alias (or prefix) for feature nodes.  Default is
+     *     "feature".
+     */
+    featurePrefix: "feature",
+    
+    /**
+     * APIProperty: featureName
+     * {String} Element name for features. Default is "featureMember".
+     */
+    featureName: "featureMember", 
+    
+    /**
+     * APIProperty: layerName
+     * {String} Name of data layer. Default is "features".
+     */
+    layerName: "features",
+    
+    /**
+     * APIProperty: geometryName
+     * {String} Name of geometry element.  Defaults to "geometry".
+     */
+    geometryName: "geometry",
+    
+    /** 
+     * APIProperty: collectionName
+     * {String} Name of featureCollection element.
+     */
+    collectionName: "FeatureCollection",
+    
+    /**
+     * APIProperty: gmlns
+     * {String} GML Namespace.
+     */
+    gmlns: "http://www.opengis.net/gml",
+
+    /**
+     * APIProperty: extractAttributes
+     * {Boolean} Extract attributes from GML.
+     */
+    extractAttributes: true,
+    
+    /**
+     * APIProperty: xy
+     * {Boolean} Order of the GML coordinate true:(x,y) or false:(y,x)
+     * Changing is not recommended, a new Format should be instantiated.
+     */ 
+    xy: true,
+    
+    /**
+     * Constructor: OpenLayers.Format.GML
+     * Create a new parser for GML.
+     *
+     * Parameters:
+     * options - {Object} An optional object whose properties will be set on
+     *     this instance.
+     */
+    initialize: function(options) {
+        // compile regular expressions once instead of every time they are used
+        this.regExes = {
+            trimSpace: (/^\s*|\s*$/g),
+            removeSpace: (/\s*/g),
+            splitSpace: (/\s+/),
+            trimComma: (/\s*,\s*/g)
+        };
+        OpenLayers.Format.XML.prototype.initialize.apply(this, [options]);
+    },
+
+    /**
+     * APIMethod: read
+     * Read data from a string, and return a list of features. 
+     * 
+     * Parameters:
+     * data - {String} or {DOMElement} data to read/parse.
+     *
+     * Returns:
+     * {Array(<OpenLayers.Feature.Vector>)} An array of features.
+     */
+    read: function(data) {
+        if(typeof data == "string") { 
+            data = OpenLayers.Format.XML.prototype.read.apply(this, [data]);
+        }
+        var featureNodes = this.getElementsByTagNameNS(data.documentElement,
+                                                       this.gmlns,
+                                                       this.featureName);
+        var features = [];
+        for(var i=0; i<featureNodes.length; i++) {
+            var feature = this.parseFeature(featureNodes[i]);
+            if(feature) {
+                features.push(feature);
+            }
+        }
+        return features;
+    },
+    
+    /**
+     * Method: parseFeature
+     * This function is the core of the GML parsing code in OpenLayers.
+     *    It creates the geometries that are then attached to the returned
+     *    feature, and calls parseAttributes() to get attribute data out.
+     *    
+     * Parameters:
+     * node - {DOMElement} A GML feature node. 
+     */
+    parseFeature: function(node) {
+        // only accept one geometry per feature - look for highest "order"
+        var order = ["MultiPolygon", "Polygon",
+                     "MultiLineString", "LineString",
+                     "MultiPoint", "Point", "Envelope"];
+        // FIXME: In case we parse a feature with no geometry, but boundedBy an Envelope,
+        // this code creates a geometry derived from the Envelope. This is not correct.
+        var type, nodeList, geometry, parser;
+        for(var i=0; i<order.length; ++i) {
+            type = order[i];
+            nodeList = this.getElementsByTagNameNS(node, this.gmlns, type);
+            if(nodeList.length > 0) {
+                // only deal with first geometry of this type
+                parser = this.parseGeometry[type.toLowerCase()];
+                if(parser) {
+                    geometry = parser.apply(this, [nodeList[0]]);
+                    if (this.internalProjection && this.externalProjection) {
+                        geometry.transform(this.externalProjection, 
+                                           this.internalProjection); 
+                    }                       
+                } else {
+                    throw new TypeError("Unsupported geometry type: " + type);
+                }
+                // stop looking for different geometry types
+                break;
+            }
+        }
+
+        var bounds;
+        var boxNodes = this.getElementsByTagNameNS(node, this.gmlns, "Box");
+        for(i=0; i<boxNodes.length; ++i) {
+            var boxNode = boxNodes[i];
+            var box = this.parseGeometry["box"].apply(this, [boxNode]);
+            var parentNode = boxNode.parentNode;
+            var parentName = parentNode.localName ||
+                             parentNode.nodeName.split(":").pop();
+            if(parentName === "boundedBy") {
+                bounds = box;
+            } else {
+                geometry = box.toGeometry();
+            }
+        }
+        
+        // construct feature (optionally with attributes)
+        var attributes;
+        if(this.extractAttributes) {
+            attributes = this.parseAttributes(node);
+        }
+        var feature = new OpenLayers.Feature.Vector(geometry, attributes);
+        feature.bounds = bounds;
+        
+        var firstChild = this.getFirstElementChild(node);
+        feature.gml = {
+            featureType: firstChild.nodeName.split(":")[1],
+            featureNS: firstChild.namespaceURI,
+            featureNSPrefix: firstChild.prefix
+        };
+        feature.type = feature.gml.featureType;
+                
+        // assign fid - this can come from a "fid" or "id" attribute
+        var childNode = node.firstChild;
+        var fid;
+        while(childNode) {
+            if(childNode.nodeType == 1) {
+                fid = childNode.getAttribute("fid") ||
+                      childNode.getAttribute("id");
+                if(fid) {
+                    break;
+                }
+            }
+            childNode = childNode.nextSibling;
+        }
+        feature.fid = fid;
+        return feature;
+    },
+    
+    /**
+     * Property: parseGeometry
+     * Properties of this object are the functions that parse geometries based
+     *     on their type.
+     */
+    parseGeometry: {
+        
+        /**
+         * Method: parseGeometry.point
+         * Given a GML node representing a point geometry, create an OpenLayers
+         *     point geometry.
+         *
+         * Parameters:
+         * node - {DOMElement} A GML node.
+         *
+         * Returns:
+         * {<OpenLayers.Geometry.Point>} A point geometry.
+         */
+        point: function(node) {
+            /**
+             * Three coordinate variations to consider:
+             * 1) <gml:pos>x y z</gml:pos>
+             * 2) <gml:coordinates>x, y, z</gml:coordinates>
+             * 3) <gml:coord><gml:X>x</gml:X><gml:Y>y</gml:Y></gml:coord>
+             */
+            var nodeList, coordString;
+            var coords = [];
+
+            // look for <gml:pos>
+            var nodeList = this.getElementsByTagNameNS(node, this.gmlns, "pos");
+            if(nodeList.length > 0) {
+                coordString = nodeList[0].firstChild.nodeValue;
+                coordString = coordString.replace(this.regExes.trimSpace, "");
+                coords = coordString.split(this.regExes.splitSpace);
+            }
+
+            // look for <gml:coordinates>
+            if(coords.length == 0) {
+                nodeList = this.getElementsByTagNameNS(node, this.gmlns,
+                                                       "coordinates");
+                if(nodeList.length > 0) {
+                    coordString = nodeList[0].firstChild.nodeValue;
+                    coordString = coordString.replace(this.regExes.removeSpace,
+                                                      "");
+                    coords = coordString.split(",");
+                }
+            }
+
+            // look for <gml:coord>
+            if(coords.length == 0) {
+                nodeList = this.getElementsByTagNameNS(node, this.gmlns,
+                                                       "coord");
+                if(nodeList.length > 0) {
+                    var xList = this.getElementsByTagNameNS(nodeList[0],
+                                                            this.gmlns, "X");
+                    var yList = this.getElementsByTagNameNS(nodeList[0],
+                                                            this.gmlns, "Y");
+                    if(xList.length > 0 && yList.length > 0) {
+                        coords = [xList[0].firstChild.nodeValue,
+                                  yList[0].firstChild.nodeValue];
+                    }
+                }
+            }
+                
+            // preserve third dimension
+            if(coords.length == 2) {
+                coords[2] = null;
+            }
+            
+            if (this.xy) {
+                return new OpenLayers.Geometry.Point(coords[0], coords[1],
+                                                 coords[2]);
+            }
+            else{
+                return new OpenLayers.Geometry.Point(coords[1], coords[0],
+                                                 coords[2]);
+            }
+        },
+        
+        /**
+         * Method: parseGeometry.multipoint
+         * Given a GML node representing a multipoint geometry, create an
+         *     OpenLayers multipoint geometry.
+         *
+         * Parameters:
+         * node - {DOMElement} A GML node.
+         *
+         * Returns:
+         * {<OpenLayers.Geometry.MultiPoint>} A multipoint geometry.
+         */
+        multipoint: function(node) {
+            var nodeList = this.getElementsByTagNameNS(node, this.gmlns,
+                                                       "Point");
+            var components = [];
+            if(nodeList.length > 0) {
+                var point;
+                for(var i=0; i<nodeList.length; ++i) {
+                    point = this.parseGeometry.point.apply(this, [nodeList[i]]);
+                    if(point) {
+                        components.push(point);
+                    }
+                }
+            }
+            return new OpenLayers.Geometry.MultiPoint(components);
+        },
+        
+        /**
+         * Method: parseGeometry.linestring
+         * Given a GML node representing a linestring geometry, create an
+         *     OpenLayers linestring geometry.
+         *
+         * Parameters:
+         * node - {DOMElement} A GML node.
+         *
+         * Returns:
+         * {<OpenLayers.Geometry.LineString>} A linestring geometry.
+         */
+        linestring: function(node, ring) {
+            /**
+             * Two coordinate variations to consider:
+             * 1) <gml:posList dimension="d">x0 y0 z0 x1 y1 z1</gml:posList>
+             * 2) <gml:coordinates>x0, y0, z0 x1, y1, z1</gml:coordinates>
+             */
+            var nodeList, coordString;
+            var coords = [];
+            var points = [];
+
+            // look for <gml:posList>
+            nodeList = this.getElementsByTagNameNS(node, this.gmlns, "posList");
+            if(nodeList.length > 0) {
+                coordString = this.getChildValue(nodeList[0]);
+                coordString = coordString.replace(this.regExes.trimSpace, "");
+                coords = coordString.split(this.regExes.splitSpace);
+                var dim = parseInt(nodeList[0].getAttribute("dimension"));
+                var j, x, y, z;
+                for(var i=0; i<coords.length/dim; ++i) {
+                    j = i * dim;
+                    x = coords[j];
+                    y = coords[j+1];
+                    z = (dim == 2) ? null : coords[j+2];
+                    if (this.xy) {
+                        points.push(new OpenLayers.Geometry.Point(x, y, z));
+                    } else {
+                        points.push(new OpenLayers.Geometry.Point(y, x, z));
+                    }
+                }
+            }
+
+            // look for <gml:coordinates>
+            if(coords.length == 0) {
+                nodeList = this.getElementsByTagNameNS(node, this.gmlns,
+                                                       "coordinates");
+                if(nodeList.length > 0) {
+                    coordString = this.getChildValue(nodeList[0]);
+                    coordString = coordString.replace(this.regExes.trimSpace,
+                                                      "");
+                    coordString = coordString.replace(this.regExes.trimComma,
+                                                      ",");
+                    var pointList = coordString.split(this.regExes.splitSpace);
+                    for(var i=0; i<pointList.length; ++i) {
+                        coords = pointList[i].split(",");
+                        if(coords.length == 2) {
+                            coords[2] = null;
+                        }
+                        if (this.xy) {
+                            points.push(new OpenLayers.Geometry.Point(coords[0],
+                                                                  coords[1],
+                                                                  coords[2]));
+                        } else {
+                            points.push(new OpenLayers.Geometry.Point(coords[1],
+                                                                  coords[0],
+                                                                  coords[2]));
+                        }
+                    }
+                }
+            }
+
+            var line = null;
+            if(points.length != 0) {
+                if(ring) {
+                    line = new OpenLayers.Geometry.LinearRing(points);
+                } else {
+                    line = new OpenLayers.Geometry.LineString(points);
+                }
+            }
+            return line;
+        },
+        
+        /**
+         * Method: parseGeometry.multilinestring
+         * Given a GML node representing a multilinestring geometry, create an
+         *     OpenLayers multilinestring geometry.
+         *
+         * Parameters:
+         * node - {DOMElement} A GML node.
+         *
+         * Returns:
+         * {<OpenLayers.Geometry.MultiLineString>} A multilinestring geometry.
+         */
+        multilinestring: function(node) {
+            var nodeList = this.getElementsByTagNameNS(node, this.gmlns,
+                                                       "LineString");
+            var components = [];
+            if(nodeList.length > 0) {
+                var line;
+                for(var i=0; i<nodeList.length; ++i) {
+                    line = this.parseGeometry.linestring.apply(this,
+                                                               [nodeList[i]]);
+                    if(line) {
+                        components.push(line);
+                    }
+                }
+            }
+            return new OpenLayers.Geometry.MultiLineString(components);
+        },
+        
+        /**
+         * Method: parseGeometry.polygon
+         * Given a GML node representing a polygon geometry, create an
+         *     OpenLayers polygon geometry.
+         *
+         * Parameters:
+         * node - {DOMElement} A GML node.
+         *
+         * Returns:
+         * {<OpenLayers.Geometry.Polygon>} A polygon geometry.
+         */
+        polygon: function(node) {
+            var nodeList = this.getElementsByTagNameNS(node, this.gmlns,
+                                                       "LinearRing");
+            var components = [];
+            if(nodeList.length > 0) {
+                // this assumes exterior ring first, inner rings after
+                var ring;
+                for(var i=0; i<nodeList.length; ++i) {
+                    ring = this.parseGeometry.linestring.apply(this,
+                                                        [nodeList[i], true]);
+                    if(ring) {
+                        components.push(ring);
+                    }
+                }
+            }
+            return new OpenLayers.Geometry.Polygon(components);
+        },
+        
+        /**
+         * Method: parseGeometry.multipolygon
+         * Given a GML node representing a multipolygon geometry, create an
+         *     OpenLayers multipolygon geometry.
+         *
+         * Parameters:
+         * node - {DOMElement} A GML node.
+         *
+         * Returns:
+         * {<OpenLayers.Geometry.MultiPolygon>} A multipolygon geometry.
+         */
+        multipolygon: function(node) {
+            var nodeList = this.getElementsByTagNameNS(node, this.gmlns,
+                                                       "Polygon");
+            var components = [];
+            if(nodeList.length > 0) {
+                var polygon;
+                for(var i=0; i<nodeList.length; ++i) {
+                    polygon = this.parseGeometry.polygon.apply(this,
+                                                               [nodeList[i]]);
+                    if(polygon) {
+                        components.push(polygon);
+                    }
+                }
+            }
+            return new OpenLayers.Geometry.MultiPolygon(components);
+        },
+        
+        envelope: function(node) {
+            var components = [];
+            var coordString;
+            var envelope;
+            
+            var lpoint = this.getElementsByTagNameNS(node, this.gmlns, "lowerCorner");
+            if (lpoint.length > 0) {
+                var coords = [];
+                
+                if(lpoint.length > 0) {
+                    coordString = lpoint[0].firstChild.nodeValue;
+                    coordString = coordString.replace(this.regExes.trimSpace, "");
+                    coords = coordString.split(this.regExes.splitSpace);
+                }
+                
+                if(coords.length == 2) {
+                    coords[2] = null;
+                }
+                if (this.xy) {
+                    var lowerPoint = new OpenLayers.Geometry.Point(coords[0], coords[1],coords[2]);
+                } else {
+                    var lowerPoint = new OpenLayers.Geometry.Point(coords[1], coords[0],coords[2]);
+                }
+            }
+            
+            var upoint = this.getElementsByTagNameNS(node, this.gmlns, "upperCorner");
+            if (upoint.length > 0) {
+                var coords = [];
+                
+                if(upoint.length > 0) {
+                    coordString = upoint[0].firstChild.nodeValue;
+                    coordString = coordString.replace(this.regExes.trimSpace, "");
+                    coords = coordString.split(this.regExes.splitSpace);
+                }
+                
+                if(coords.length == 2) {
+                    coords[2] = null;
+                }
+                if (this.xy) {
+                    var upperPoint = new OpenLayers.Geometry.Point(coords[0], coords[1],coords[2]);
+                } else {
+                    var upperPoint = new OpenLayers.Geometry.Point(coords[1], coords[0],coords[2]);
+                }
+            }
+            
+            if (lowerPoint && upperPoint) {
+                components.push(new OpenLayers.Geometry.Point(lowerPoint.x, lowerPoint.y));
+                components.push(new OpenLayers.Geometry.Point(upperPoint.x, lowerPoint.y));
+                components.push(new OpenLayers.Geometry.Point(upperPoint.x, upperPoint.y));
+                components.push(new OpenLayers.Geometry.Point(lowerPoint.x, upperPoint.y));
+                components.push(new OpenLayers.Geometry.Point(lowerPoint.x, lowerPoint.y));
+                
+                var ring = new OpenLayers.Geometry.LinearRing(components);
+                envelope = new OpenLayers.Geometry.Polygon([ring]);
+            }
+            return envelope; 
+        },
+
+        /**
+         * Method: parseGeometry.box
+         * Given a GML node representing a box geometry, create an
+         *     OpenLayers.Bounds.
+         *
+         * Parameters:
+         * node - {DOMElement} A GML node.
+         *
+         * Returns:
+         * {<OpenLayers.Bounds>} A bounds representing the box.
+         */
+        box: function(node) {
+            var nodeList = this.getElementsByTagNameNS(node, this.gmlns,
+                                                   "coordinates");
+            var coordString;
+            var coords, beginPoint = null, endPoint = null;
+            if (nodeList.length > 0) {
+                coordString = nodeList[0].firstChild.nodeValue;
+                coords = coordString.split(" ");
+                if (coords.length == 2) {
+                    beginPoint = coords[0].split(",");
+                    endPoint = coords[1].split(",");
+                }
+            }
+            if (beginPoint !== null && endPoint !== null) {
+                return new OpenLayers.Bounds(parseFloat(beginPoint[0]),
+                    parseFloat(beginPoint[1]),
+                    parseFloat(endPoint[0]),
+                    parseFloat(endPoint[1]) );
+            }
+        }
+        
+    },
+    
+    /**
+     * Method: parseAttributes
+     *
+     * Parameters:
+     * node - {DOMElement}
+     *
+     * Returns:
+     * {Object} An attributes object.
+     */
+    parseAttributes: function(node) {
+        var attributes = {};
+        // assume attributes are children of the first type 1 child
+        var childNode = node.firstChild;
+        var children, i, child, grandchildren, grandchild, name, value;
+        while(childNode) {
+            if(childNode.nodeType == 1) {
+                // attributes are type 1 children with one type 3 child
+                children = childNode.childNodes;
+                for(i=0; i<children.length; ++i) {
+                    child = children[i];
+                    if(child.nodeType == 1) {
+                        grandchildren = child.childNodes;
+                        if(grandchildren.length == 1) {
+                            grandchild = grandchildren[0];
+                            if(grandchild.nodeType == 3 ||
+                               grandchild.nodeType == 4) {
+                                name = (child.prefix) ?
+                                        child.nodeName.split(":")[1] :
+                                        child.nodeName;
+                                value = grandchild.nodeValue.replace(
+                                                this.regExes.trimSpace, "");
+                                attributes[name] = value;
+                            }
+                        } else {
+                            // If child has no childNodes (grandchildren),
+                            // set an attribute with null value.
+                            // e.g. <prefix:fieldname/> becomes
+                            // {fieldname: null}
+                            attributes[child.nodeName.split(":").pop()] = null;
+                        }
+                    }
+                }
+                break;
+            }
+            childNode = childNode.nextSibling;
+        }
+        return attributes;
+    },
+    
+    /**
+     * APIMethod: write
+     * Generate a GML document string given a list of features. 
+     * 
+     * Parameters:
+     * features - {Array(<OpenLayers.Feature.Vector>)} List of features to
+     *     serialize into a string.
+     *
+     * Returns:
+     * {String} A string representing the GML document.
+     */
+    write: function(features) {
+        if(!(OpenLayers.Util.isArray(features))) {
+            features = [features];
+        }
+        var gml = this.createElementNS("http://www.opengis.net/wfs",
+                                       "wfs:" + this.collectionName);
+        for(var i=0; i<features.length; i++) {
+            gml.appendChild(this.createFeatureXML(features[i]));
+        }
+        return OpenLayers.Format.XML.prototype.write.apply(this, [gml]);
+    },
+
+    /** 
+     * Method: createFeatureXML
+     * Accept an OpenLayers.Feature.Vector, and build a GML node for it.
+     *
+     * Parameters:
+     * feature - {<OpenLayers.Feature.Vector>} The feature to be built as GML.
+     *
+     * Returns:
+     * {DOMElement} A node reprensting the feature in GML.
+     */
+    createFeatureXML: function(feature) {
+        var geometry = feature.geometry;
+        var geometryNode = this.buildGeometryNode(geometry);
+        var geomContainer = this.createElementNS(this.featureNS,
+                                                 this.featurePrefix + ":" +
+                                                 this.geometryName);
+        geomContainer.appendChild(geometryNode);
+        var featureNode = this.createElementNS(this.gmlns,
+                                               "gml:" + this.featureName);
+        var featureContainer = this.createElementNS(this.featureNS,
+                                                    this.featurePrefix + ":" +
+                                                    this.layerName);
+        var fid = feature.fid || feature.id;
+        featureContainer.setAttribute("fid", fid);
+        featureContainer.appendChild(geomContainer);
+        for(var attr in feature.attributes) {
+            var attrText = this.createTextNode(feature.attributes[attr]); 
+            var nodename = attr.substring(attr.lastIndexOf(":") + 1);
+            var attrContainer = this.createElementNS(this.featureNS,
+                                                     this.featurePrefix + ":" +
+                                                     nodename);
+            attrContainer.appendChild(attrText);
+            featureContainer.appendChild(attrContainer);
+        }    
+        featureNode.appendChild(featureContainer);
+        return featureNode;
+    },
+    
+    /**
+     * APIMethod: buildGeometryNode
+     */
+    buildGeometryNode: function(geometry) {
+        if (this.externalProjection && this.internalProjection) {
+            geometry = geometry.clone();
+            geometry.transform(this.internalProjection, 
+                               this.externalProjection);
+        }    
+        var className = geometry.CLASS_NAME;
+        var type = className.substring(className.lastIndexOf(".") + 1);
+        var builder = this.buildGeometry[type.toLowerCase()];
+        return builder.apply(this, [geometry]);
+    },
+
+    /**
+     * Property: buildGeometry
+     * Object containing methods to do the actual geometry node building
+     *     based on geometry type.
+     */
+    buildGeometry: {
+        // TBD retrieve the srs from layer
+        // srsName is non-standard, so not including it until it's right.
+        // gml.setAttribute("srsName",
+        //                  "http://www.opengis.net/gml/srs/epsg.xml#4326");
+
+        /**
+         * Method: buildGeometry.point
+         * Given an OpenLayers point geometry, create a GML point.
+         *
+         * Parameters:
+         * geometry - {<OpenLayers.Geometry.Point>} A point geometry.
+         *
+         * Returns:
+         * {DOMElement} A GML point node.
+         */
+        point: function(geometry) {
+            var gml = this.createElementNS(this.gmlns, "gml:Point");
+            gml.appendChild(this.buildCoordinatesNode(geometry));
+            return gml;
+        },
+        
+        /**
+         * Method: buildGeometry.multipoint
+         * Given an OpenLayers multipoint geometry, create a GML multipoint.
+         *
+         * Parameters:
+         * geometry - {<OpenLayers.Geometry.MultiPoint>} A multipoint geometry.
+         *
+         * Returns:
+         * {DOMElement} A GML multipoint node.
+         */
+        multipoint: function(geometry) {
+            var gml = this.createElementNS(this.gmlns, "gml:MultiPoint");
+            var points = geometry.components;
+            var pointMember, pointGeom;
+            for(var i=0; i<points.length; i++) { 
+                pointMember = this.createElementNS(this.gmlns,
+                                                   "gml:pointMember");
+                pointGeom = this.buildGeometry.point.apply(this,
+                                                               [points[i]]);
+                pointMember.appendChild(pointGeom);
+                gml.appendChild(pointMember);
+            }
+            return gml;            
+        },
+        
+        /**
+         * Method: buildGeometry.linestring
+         * Given an OpenLayers linestring geometry, create a GML linestring.
+         *
+         * Parameters:
+         * geometry - {<OpenLayers.Geometry.LineString>} A linestring geometry.
+         *
+         * Returns:
+         * {DOMElement} A GML linestring node.
+         */
+        linestring: function(geometry) {
+            var gml = this.createElementNS(this.gmlns, "gml:LineString");
+            gml.appendChild(this.buildCoordinatesNode(geometry));
+            return gml;
+        },
+        
+        /**
+         * Method: buildGeometry.multilinestring
+         * Given an OpenLayers multilinestring geometry, create a GML
+         *     multilinestring.
+         *
+         * Parameters:
+         * geometry - {<OpenLayers.Geometry.MultiLineString>} A multilinestring
+         *     geometry.
+         *
+         * Returns:
+         * {DOMElement} A GML multilinestring node.
+         */
+        multilinestring: function(geometry) {
+            var gml = this.createElementNS(this.gmlns, "gml:MultiLineString");
+            var lines = geometry.components;
+            var lineMember, lineGeom;
+            for(var i=0; i<lines.length; ++i) {
+                lineMember = this.createElementNS(this.gmlns,
+                                                  "gml:lineStringMember");
+                lineGeom = this.buildGeometry.linestring.apply(this,
+                                                                   [lines[i]]);
+                lineMember.appendChild(lineGeom);
+                gml.appendChild(lineMember);
+            }
+            return gml;
+        },
+        
+        /**
+         * Method: buildGeometry.linearring
+         * Given an OpenLayers linearring geometry, create a GML linearring.
+         *
+         * Parameters:
+         * geometry - {<OpenLayers.Geometry.LinearRing>} A linearring geometry.
+         *
+         * Returns:
+         * {DOMElement} A GML linearring node.
+         */
+        linearring: function(geometry) {
+            var gml = this.createElementNS(this.gmlns, "gml:LinearRing");
+            gml.appendChild(this.buildCoordinatesNode(geometry));
+            return gml;
+        },
+        
+        /**
+         * Method: buildGeometry.polygon
+         * Given an OpenLayers polygon geometry, create a GML polygon.
+         *
+         * Parameters:
+         * geometry - {<OpenLayers.Geometry.Polygon>} A polygon geometry.
+         *
+         * Returns:
+         * {DOMElement} A GML polygon node.
+         */
+        polygon: function(geometry) {
+            var gml = this.createElementNS(this.gmlns, "gml:Polygon");
+            var rings = geometry.components;
+            var ringMember, ringGeom, type;
+            for(var i=0; i<rings.length; ++i) {
+                type = (i==0) ? "outerBoundaryIs" : "innerBoundaryIs";
+                ringMember = this.createElementNS(this.gmlns,
+                                                  "gml:" + type);
+                ringGeom = this.buildGeometry.linearring.apply(this,
+                                                                   [rings[i]]);
+                ringMember.appendChild(ringGeom);
+                gml.appendChild(ringMember);
+            }
+            return gml;
+        },
+        
+        /**
+         * Method: buildGeometry.multipolygon
+         * Given an OpenLayers multipolygon geometry, create a GML multipolygon.
+         *
+         * Parameters:
+         * geometry - {<OpenLayers.Geometry.MultiPolygon>} A multipolygon
+         *     geometry.
+         *
+         * Returns:
+         * {DOMElement} A GML multipolygon node.
+         */
+        multipolygon: function(geometry) {
+            var gml = this.createElementNS(this.gmlns, "gml:MultiPolygon");
+            var polys = geometry.components;
+            var polyMember, polyGeom;
+            for(var i=0; i<polys.length; ++i) {
+                polyMember = this.createElementNS(this.gmlns,
+                                                  "gml:polygonMember");
+                polyGeom = this.buildGeometry.polygon.apply(this,
+                                                                [polys[i]]);
+                polyMember.appendChild(polyGeom);
+                gml.appendChild(polyMember);
+            }
+            return gml;
+
+        },
+ 
+        /**
+         * Method: buildGeometry.bounds
+         * Given an OpenLayers bounds, create a GML box.
+         *
+         * Parameters:
+         * bounds - {<OpenLayers.Geometry.Bounds>} A bounds object.
+         *
+         * Returns:
+         * {DOMElement} A GML box node.
+         */
+        bounds: function(bounds) {
+            var gml = this.createElementNS(this.gmlns, "gml:Box");
+            gml.appendChild(this.buildCoordinatesNode(bounds));
+            return gml;
+        }
+    },
+
+    /**
+     * Method: buildCoordinates
+     * builds the coordinates XmlNode
+     * (code)
+     * <gml:coordinates decimal="." cs="," ts=" ">...</gml:coordinates>
+     * (end)
+     *
+     * Parameters: 
+     * geometry - {<OpenLayers.Geometry>} 
+     *
+     * Returns:
+     * {XmlNode} created xmlNode
+     */
+    buildCoordinatesNode: function(geometry) {
+        var coordinatesNode = this.createElementNS(this.gmlns,
+                                                   "gml:coordinates");
+        coordinatesNode.setAttribute("decimal", ".");
+        coordinatesNode.setAttribute("cs", ",");
+        coordinatesNode.setAttribute("ts", " ");
+
+        var parts = [];
+
+        if(geometry instanceof OpenLayers.Bounds){
+            parts.push(geometry.left + "," + geometry.bottom);
+            parts.push(geometry.right + "," + geometry.top);
+        } else {
+            var points = (geometry.components) ? geometry.components : [geometry];
+            for(var i=0; i<points.length; i++) {
+                parts.push(points[i].x + "," + points[i].y);                
+            }            
+        }
+
+        var txtNode = this.createTextNode(parts.join(" "));
+        coordinatesNode.appendChild(txtNode);
+        
+        return coordinatesNode;
+    },
+
+    CLASS_NAME: "OpenLayers.Format.GML" 
+});
+/* ======================================================================
+    OpenLayers/Format/GML/Base.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Format/XML.js
+ * @requires OpenLayers/Format/GML.js
+ */
+
+/**
+ * Though required in the full build, if the GML format is excluded, we set
+ * the namespace here.
+ */
+if(!OpenLayers.Format.GML) {
+    OpenLayers.Format.GML = {};
+}
+
+/**
+ * Class: OpenLayers.Format.GML.Base
+ * Superclass for GML parsers.
+ *
+ * Inherits from:
+ *  - <OpenLayers.Format.XML>
+ */
+OpenLayers.Format.GML.Base = OpenLayers.Class(OpenLayers.Format.XML, {
+    
+    /**
+     * Property: namespaces
+     * {Object} Mapping of namespace aliases to namespace URIs.
+     */
+    namespaces: {
+        gml: "http://www.opengis.net/gml",
+        xlink: "http://www.w3.org/1999/xlink",
+        xsi: "http://www.w3.org/2001/XMLSchema-instance",
+        wfs: "http://www.opengis.net/wfs" // this is a convenience for reading wfs:FeatureCollection
+    },
+    
+    /**
+     * Property: defaultPrefix
+     */
+    defaultPrefix: "gml",
+
+    /**
+     * Property: schemaLocation
+     * {String} Schema location for a particular minor version.
+     */
+    schemaLocation: null,
+    
+    /**
+     * APIProperty: featureType
+     * {Array(String) or String} The local (without prefix) feature typeName(s).
+     */
+    featureType: null,
+    
+    /**
+     * APIProperty: featureNS
+     * {String} The feature namespace.  Must be set in the options at
+     *     construction.
+     */
+    featureNS: null,
+
+    /**
+     * APIProperty: featurePrefix
+     * {String} Namespace alias (or prefix) for feature nodes.  Default is
+     *     "feature".
+     */
+    featurePrefix: "feature",
+
+    /**
+     * APIProperty: geometry
+     * {String} Name of geometry element.  Defaults to "geometry". If null, it
+     * will be set on <read> when the first geometry is parsed.
+     */
+    geometryName: "geometry",
+
+    /**
+     * APIProperty: extractAttributes
+     * {Boolean} Extract attributes from GML.  Default is true.
+     */
+    extractAttributes: true,
+    
+    /**
+     * APIProperty: srsName
+     * {String} URI for spatial reference system.  This is optional for
+     *     single part geometries and mandatory for collections and multis.
+     *     If set, the srsName attribute will be written for all geometries.
+     *     Default is null.
+     */
+    srsName: null,
+
+    /**
+     * APIProperty: xy
+     * {Boolean} Order of the GML coordinate true:(x,y) or false:(y,x)
+     * Changing is not recommended, a new Format should be instantiated.
+     */ 
+    xy: true,
+
+    /**
+     * Property: geometryTypes
+     * {Object} Maps OpenLayers geometry class names to GML element names.
+     *     Use <setGeometryTypes> before accessing this property.
+     */
+    geometryTypes: null,
+
+    /**
+     * Property: singleFeatureType
+     * {Boolean} True if there is only 1 featureType, and not an array
+     *     of featuretypes.
+     */
+    singleFeatureType: null,
+    
+    /**
+     * Property: autoConfig
+     * {Boolean} Indicates if the format was configured without a <featureNS>,
+     * but auto-configured <featureNS> and <featureType> during read.
+     * Subclasses making use of <featureType> auto-configuration should make
+     * the first call to the <readNode> method (usually in the read method)
+     * with true as 3rd argument, so the auto-configured featureType can be
+     * reset and the format can be reused for subsequent reads with data from
+     * different featureTypes. Set to false after read if you want to keep the
+     * auto-configured values.
+     */
+
+    /**
+     * Property: regExes
+     * Compiled regular expressions for manipulating strings.
+     */
+    regExes: {
+        trimSpace: (/^\s*|\s*$/g),
+        removeSpace: (/\s*/g),
+        splitSpace: (/\s+/),
+        trimComma: (/\s*,\s*/g),
+        featureMember: (/^(.*:)?featureMembers?$/)
+    },
+
+    /**
+     * Constructor: OpenLayers.Format.GML.Base
+     * Instances of this class are not created directly.  Use the
+     *     <OpenLayers.Format.GML.v2> or <OpenLayers.Format.GML.v3> constructor
+     *     instead.
+     *
+     * Parameters:
+     * options - {Object} An optional object whose properties will be set on
+     *     this instance.
+     *
+     * Valid options properties:
+     * featureType - {Array(String) or String} Local (without prefix) feature 
+     *     typeName(s) (required for write).
+     * featureNS - {String} Feature namespace (required for write).
+     * geometryName - {String} Geometry element name (required for write).
+     */
+    initialize: function(options) {
+        OpenLayers.Format.XML.prototype.initialize.apply(this, [options]);
+        this.setGeometryTypes();
+        if(options && options.featureNS) {
+            this.setNamespace(this.featurePrefix, options.featureNS);
+        }
+        this.singleFeatureType = !options || (typeof options.featureType === "string");
+    },
+    
+    /**
+     * Method: read
+     *
+     * Parameters:
+     * data - {DOMElement} A gml:featureMember element, a gml:featureMembers
+     *     element, or an element containing either of the above at any level.
+     *
+     * Returns:
+     * {Array(<OpenLayers.Feature.Vector>)} An array of features.
+     */
+    read: function(data) {
+        if(typeof data == "string") { 
+            data = OpenLayers.Format.XML.prototype.read.apply(this, [data]);
+        }
+        if(data && data.nodeType == 9) {
+            data = data.documentElement;
+        }
+        var features = [];
+        this.readNode(data, {features: features}, true);
+        if(features.length == 0) {
+            // look for gml:featureMember elements
+            var elements = this.getElementsByTagNameNS(
+                data, this.namespaces.gml, "featureMember"
+            );
+            if(elements.length) {
+                for(var i=0, len=elements.length; i<len; ++i) {
+                    this.readNode(elements[i], {features: features}, true);
+                }
+            } else {
+                // look for gml:featureMembers elements (this is v3, but does no harm here)
+                var elements = this.getElementsByTagNameNS(
+                    data, this.namespaces.gml, "featureMembers"
+                );
+                if(elements.length) {
+                    // there can be only one
+                    this.readNode(elements[0], {features: features}, true);
+                }
+            }
+        }
+        return features;
+    },
+    
+    /**
+     * Method: readNode
+     * Shorthand for applying one of the named readers given the node
+     *     namespace and local name.  Readers take two args (node, obj) and
+     *     generally extend or modify the second.
+     *
+     * Parameters:
+     * node - {DOMElement} The node to be read (required).
+     * obj - {Object} The object to be modified (optional).
+     * first - {Boolean} Should be set to true for the first node read. This
+     *     is usually the readNode call in the read method. Without this being
+     *     set, auto-configured properties will stick on subsequent reads.
+     *
+     * Returns:
+     * {Object} The input object, modified (or a new one if none was provided).
+     */
+    readNode: function(node, obj, first) {
+        // on subsequent calls of format.read(), we want to reset auto-
+        // configured properties and auto-configure again.
+        if (first === true && this.autoConfig === true) {
+            this.featureType = null;
+            delete this.namespaceAlias[this.featureNS];
+            delete this.namespaces["feature"];
+            this.featureNS = null;
+        }
+        // featureType auto-configuration
+        if (!this.featureNS && (!(node.prefix in this.namespaces) &&
+                node.parentNode.namespaceURI == this.namespaces["gml"] &&
+                this.regExes.featureMember.test(node.parentNode.nodeName))) {
+            this.featureType = node.nodeName.split(":").pop();
+            this.setNamespace("feature", node.namespaceURI);
+            this.featureNS = node.namespaceURI;
+            this.autoConfig = true;
+        }
+        return OpenLayers.Format.XML.prototype.readNode.apply(this, [node, obj]);
+    },
+    
+    /**
+     * Property: readers
+     * Contains public functions, grouped by namespace prefix, that will
+     *     be applied when a namespaced node is found matching the function
+     *     name.  The function will be applied in the scope of this parser
+     *     with two arguments: the node being read and a context object passed
+     *     from the parent.
+     */
+    readers: {
+        "gml": {
+            "_inherit": function(node, obj, container) {
+                // To be implemented by version specific parsers
+            },
+            "featureMember": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "featureMembers": function(node, obj) {
+                this.readChildNodes(node, obj);                
+            },
+            "name": function(node, obj) {
+                obj.name = this.getChildValue(node);
+            },
+            "boundedBy": function(node, obj) {
+                var container = {};
+                this.readChildNodes(node, container);
+                if(container.components && container.components.length > 0) {
+                    obj.bounds = container.components[0];
+                }
+            },
+            "Point": function(node, container) {
+                var obj = {points: []};
+                this.readChildNodes(node, obj);
+                if(!container.components) {
+                    container.components = [];
+                }
+                container.components.push(obj.points[0]);
+            },
+            "coordinates": function(node, obj) {
+                var str = this.getChildValue(node).replace(
+                    this.regExes.trimSpace, ""
+                );
+                str = str.replace(this.regExes.trimComma, ",");
+                var pointList = str.split(this.regExes.splitSpace);
+                var coords;
+                var numPoints = pointList.length;
+                var points = new Array(numPoints);
+                for(var i=0; i<numPoints; ++i) {
+                    coords = pointList[i].split(",");
+                    if (this.xy) {
+                        points[i] = new OpenLayers.Geometry.Point(
+                            coords[0], coords[1], coords[2]
+                        );
+                    } else {
+                        points[i] = new OpenLayers.Geometry.Point(
+                            coords[1], coords[0], coords[2]
+                        );
+                    }
+                }
+                obj.points = points;
+            },
+            "coord": function(node, obj) {
+                var coord = {};
+                this.readChildNodes(node, coord);
+                if(!obj.points) {
+                    obj.points = [];
+                }
+                obj.points.push(new OpenLayers.Geometry.Point(
+                    coord.x, coord.y, coord.z
+                ));
+            },
+            "X": function(node, coord) {
+                coord.x = this.getChildValue(node);
+            },
+            "Y": function(node, coord) {
+                coord.y = this.getChildValue(node);
+            },
+            "Z": function(node, coord) {
+                coord.z = this.getChildValue(node);
+            },
+            "MultiPoint": function(node, container) {
+                var obj = {components: []};
+                this.readers.gml._inherit.apply(this, [node, obj, container]);
+                this.readChildNodes(node, obj);
+                container.components = [
+                    new OpenLayers.Geometry.MultiPoint(obj.components)
+                ];
+            },
+            "pointMember": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "LineString": function(node, container) {
+                var obj = {};
+                this.readers.gml._inherit.apply(this, [node, obj, container]);
+                this.readChildNodes(node, obj);
+                if(!container.components) {
+                    container.components = [];
+                }
+                container.components.push(
+                    new OpenLayers.Geometry.LineString(obj.points)
+                );
+            },
+            "MultiLineString": function(node, container) {
+                var obj = {components: []};
+                this.readers.gml._inherit.apply(this, [node, obj, container]);
+                this.readChildNodes(node, obj);
+                container.components = [
+                    new OpenLayers.Geometry.MultiLineString(obj.components)
+                ];
+            },
+            "lineStringMember": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "Polygon": function(node, container) {
+                var obj = {outer: null, inner: []};
+                this.readers.gml._inherit.apply(this, [node, obj, container]);
+                this.readChildNodes(node, obj);
+                obj.inner.unshift(obj.outer);
+                if(!container.components) {
+                    container.components = [];
+                }
+                container.components.push(
+                    new OpenLayers.Geometry.Polygon(obj.inner)
+                );
+            },
+            "LinearRing": function(node, obj) {
+                var container = {};
+                this.readers.gml._inherit.apply(this, [node, container]);
+                this.readChildNodes(node, container);
+                obj.components = [new OpenLayers.Geometry.LinearRing(
+                    container.points
+                )];
+            },
+            "MultiPolygon": function(node, container) {
+                var obj = {components: []};
+                this.readers.gml._inherit.apply(this, [node, obj, container]);
+                this.readChildNodes(node, obj);
+                container.components = [
+                    new OpenLayers.Geometry.MultiPolygon(obj.components)
+                ];
+            },
+            "polygonMember": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "GeometryCollection": function(node, container) {
+                var obj = {components: []};
+                this.readers.gml._inherit.apply(this, [node, obj, container]);
+                this.readChildNodes(node, obj);
+                container.components = [
+                    new OpenLayers.Geometry.Collection(obj.components)
+                ];
+            },
+            "geometryMember": function(node, obj) {
+                this.readChildNodes(node, obj);
+            }
+        },
+        "feature": {
+            "*": function(node, obj) {
+                // The node can either be named like the featureType, or it
+                // can be a child of the feature:featureType.  Children can be
+                // geometry or attributes.
+                var name;
+                var local = node.localName || node.nodeName.split(":").pop();
+                // Since an attribute can have the same name as the feature type
+                // we only want to read the node as a feature if the parent
+                // node can have feature nodes as children.  In this case, the
+                // obj.features property is set.
+                if (obj.features) {
+                    if (!this.singleFeatureType &&
+                        (OpenLayers.Util.indexOf(this.featureType, local) !== -1)) {
+                        name = "_typeName";
+                    } else if(local === this.featureType) {
+                        name = "_typeName";
+                    }
+                } else {
+                    // Assume attribute elements have one child node and that the child
+                    // is a text node.  Otherwise assume it is a geometry node.
+                    if(node.childNodes.length == 0 ||
+                       (node.childNodes.length == 1 && node.firstChild.nodeType == 3)) {
+                        if(this.extractAttributes) {
+                            name = "_attribute";
+                        }
+                    } else {
+                        name = "_geometry";
+                    }
+                }
+                if(name) {
+                    this.readers.feature[name].apply(this, [node, obj]);
+                }
+            },
+            "_typeName": function(node, obj) {
+                var container = {components: [], attributes: {}};
+                this.readChildNodes(node, container);
+                // look for common gml namespaced elements
+                if(container.name) {
+                    container.attributes.name = container.name;
+                }
+                var feature = new OpenLayers.Feature.Vector(
+                    container.components[0], container.attributes
+                );
+                if (!this.singleFeatureType) {
+                    feature.type = node.nodeName.split(":").pop();
+                    feature.namespace = node.namespaceURI;
+                }
+                var fid = node.getAttribute("fid") ||
+                    this.getAttributeNS(node, this.namespaces["gml"], "id");
+                if(fid) {
+                    feature.fid = fid;
+                }
+                if(this.internalProjection && this.externalProjection &&
+                   feature.geometry) {
+                    feature.geometry.transform(
+                        this.externalProjection, this.internalProjection
+                    );
+                }
+                if(container.bounds) {
+                    feature.bounds = container.bounds;
+                }
+                obj.features.push(feature);
+            },
+            "_geometry": function(node, obj) {
+                if (!this.geometryName) {
+                    this.geometryName = node.nodeName.split(":").pop();
+                }
+                this.readChildNodes(node, obj);
+            },
+            "_attribute": function(node, obj) {
+                var local = node.localName || node.nodeName.split(":").pop();
+                var value = this.getChildValue(node);
+                obj.attributes[local] = value;
+            }
+        },
+        "wfs": {
+            "FeatureCollection": function(node, obj) {
+                this.readChildNodes(node, obj);
+            }
+        }
+    },
+    
+    /**
+     * Method: write
+     *
+     * Parameters:
+     * features - {Array(<OpenLayers.Feature.Vector>) | OpenLayers.Feature.Vector}
+     *     An array of features or a single feature.
+     *
+     * Returns:
+     * {String} Given an array of features, a doc with a gml:featureMembers
+     *     element will be returned.  Given a single feature, a doc with a
+     *     gml:featureMember element will be returned.
+     */
+    write: function(features) {
+        var name;
+        if(OpenLayers.Util.isArray(features)) {
+            name = "featureMembers";
+        } else {
+            name = "featureMember";
+        }
+        var root = this.writeNode("gml:" + name, features);
+        this.setAttributeNS(
+            root, this.namespaces["xsi"],
+            "xsi:schemaLocation", this.schemaLocation
+        );
+
+        return OpenLayers.Format.XML.prototype.write.apply(this, [root]);
+    },
+    
+    /**
+     * Property: writers
+     * As a compliment to the readers property, this structure contains public
+     *     writing functions grouped by namespace alias and named like the
+     *     node names they produce.
+     */
+    writers: {
+        "gml": {
+            "featureMember": function(feature) {
+                var node = this.createElementNSPlus("gml:featureMember");
+                this.writeNode("feature:_typeName", feature, node);
+                return node;
+            },
+            "MultiPoint": function(geometry) {
+                var node = this.createElementNSPlus("gml:MultiPoint");
+                var components = geometry.components || [geometry];
+                for(var i=0, ii=components.length; i<ii; ++i) {
+                    this.writeNode("pointMember", components[i], node);
+                }
+                return node;
+            },
+            "pointMember": function(geometry) {
+                var node = this.createElementNSPlus("gml:pointMember");
+                this.writeNode("Point", geometry, node);
+                return node;
+            },
+            "MultiLineString": function(geometry) {
+                var node = this.createElementNSPlus("gml:MultiLineString");
+                var components = geometry.components || [geometry];
+                for(var i=0, ii=components.length; i<ii; ++i) {
+                    this.writeNode("lineStringMember", components[i], node);
+                }
+                return node;
+            },
+            "lineStringMember": function(geometry) {
+                var node = this.createElementNSPlus("gml:lineStringMember");
+                this.writeNode("LineString", geometry, node);
+                return node;
+            },
+            "MultiPolygon": function(geometry) {
+                var node = this.createElementNSPlus("gml:MultiPolygon");
+                var components = geometry.components || [geometry];
+                for(var i=0, ii=components.length; i<ii; ++i) {
+                    this.writeNode(
+                        "polygonMember", components[i], node
+                    );
+                }
+                return node;
+            },
+            "polygonMember": function(geometry) {
+                var node = this.createElementNSPlus("gml:polygonMember");
+                this.writeNode("Polygon", geometry, node);
+                return node;
+            },
+            "GeometryCollection": function(geometry) {
+                var node = this.createElementNSPlus("gml:GeometryCollection");
+                for(var i=0, len=geometry.components.length; i<len; ++i) {
+                    this.writeNode("geometryMember", geometry.components[i], node);
+                }
+                return node;
+            },
+            "geometryMember": function(geometry) {
+                var node = this.createElementNSPlus("gml:geometryMember");
+                var child = this.writeNode("feature:_geometry", geometry);
+                node.appendChild(child.firstChild);
+                return node;
+            }
+        },
+        "feature": {
+            "_typeName": function(feature) {
+                var node = this.createElementNSPlus(this.featurePrefix + ":" + this.featureType, {
+                    attributes: {fid: feature.fid}
+                });
+                if(feature.geometry) {
+                    this.writeNode("feature:_geometry", feature.geometry, node);
+                }
+                for(var name in feature.attributes) {
+                    var value = feature.attributes[name];
+                    if(value != null) {
+                        this.writeNode(
+                            "feature:_attribute",
+                            {name: name, value: value}, node
+                        );
+                    }
+                }
+                return node;
+            },
+            "_geometry": function(geometry) {
+                if(this.externalProjection && this.internalProjection) {
+                    geometry = geometry.clone().transform(
+                        this.internalProjection, this.externalProjection
+                    );
+                }    
+                var node = this.createElementNSPlus(
+                    this.featurePrefix + ":" + this.geometryName
+                );
+                var type = this.geometryTypes[geometry.CLASS_NAME];
+                var child = this.writeNode("gml:" + type, geometry, node);
+                if(this.srsName) {
+                    child.setAttribute("srsName", this.srsName);
+                }
+                return node;
+            },
+            "_attribute": function(obj) {
+                return this.createElementNSPlus(this.featurePrefix + ":" + obj.name, {
+                    value: obj.value
+                });
+            }
+        },
+        "wfs": {
+            "FeatureCollection": function(features) {
+                /**
+                 * This is only here because GML2 only describes abstract
+                 * feature collections.  Typically, you would not be using
+                 * the GML format to write wfs elements.  This just provides
+                 * some way to write out lists of features.  GML3 defines the
+                 * featureMembers element, so that is used by default instead.
+                 */
+                var node = this.createElementNSPlus("wfs:FeatureCollection");
+                for(var i=0, len=features.length; i<len; ++i) {
+                    this.writeNode("gml:featureMember", features[i], node);
+                }
+                return node;
+            }
+        }
+    },
+    
+    /**
+     * Method: setGeometryTypes
+     * Sets the <geometryTypes> mapping.
+     */
+    setGeometryTypes: function() {
+        this.geometryTypes = {
+            "OpenLayers.Geometry.Point": "Point",
+            "OpenLayers.Geometry.MultiPoint": "MultiPoint",
+            "OpenLayers.Geometry.LineString": "LineString",
+            "OpenLayers.Geometry.MultiLineString": "MultiLineString",
+            "OpenLayers.Geometry.Polygon": "Polygon",
+            "OpenLayers.Geometry.MultiPolygon": "MultiPolygon",
+            "OpenLayers.Geometry.Collection": "GeometryCollection"
+        };
+    },
+
+    CLASS_NAME: "OpenLayers.Format.GML.Base" 
+
+});
+/* ======================================================================
     OpenLayers/Format/WFSDescribeFeatureType.js
    ====================================================================== */
 
@@ -6906,7 +12609,7 @@ OpenLayers.Format.WFSDescribeFeatureType = OpenLayers.Class(
 
 });
 /* ======================================================================
-    OpenLayers/Format/WFSCapabilities/v1_1_0.js
+    OpenLayers/Format/GML/v3.js
    ====================================================================== */
 
 /* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
@@ -6915,39 +12618,81 @@ OpenLayers.Format.WFSDescribeFeatureType = OpenLayers.Class(
  * full text of the license. */
 
 /**
- * @requires OpenLayers/Format/WFSCapabilities/v1.js
- * @requires OpenLayers/Format/OWSCommon/v1.js
+ * @requires OpenLayers/Format/GML/Base.js
  */
 
 /**
- * Class: OpenLayers.Format.WFSCapabilities/v1_1_0
- * Read WFS Capabilities version 1.1.0.
- * 
+ * Class: OpenLayers.Format.GML.v3
+ * Parses GML version 3.
+ *
  * Inherits from:
- *  - <OpenLayers.Format.WFSCapabilities>
+ *  - <OpenLayers.Format.GML.Base>
  */
-OpenLayers.Format.WFSCapabilities.v1_1_0 = OpenLayers.Class(
-    OpenLayers.Format.WFSCapabilities.v1, {
-
-    /**
-     * Property: regExes
-     * Compiled regular expressions for manipulating strings.
-     */
-    regExes: {
-        trimSpace: (/^\s*|\s*$/g),
-        removeSpace: (/\s*/g),
-        splitSpace: (/\s+/),
-        trimComma: (/\s*,\s*/g)
-    },
+OpenLayers.Format.GML.v3 = OpenLayers.Class(OpenLayers.Format.GML.Base, {
     
     /**
-     * Constructor: OpenLayers.Format.WFSCapabilities.v1_1_0
-     * Create a new parser for WFS capabilities version 1.1.0.
+     * Property: schemaLocation
+     * {String} Schema location for a particular minor version.  The writers
+     *     conform with the Simple Features Profile for GML.
+     */
+    schemaLocation: "http://www.opengis.net/gml http://schemas.opengis.net/gml/3.1.1/profiles/gmlsfProfile/1.0.0/gmlsf.xsd",
+
+    /**
+     * Property: curve
+     * {Boolean} Write gml:Curve instead of gml:LineString elements.  This also
+     *     affects the elements in multi-part geometries.  Default is false.
+     *     To write gml:Curve elements instead of gml:LineString, set curve
+     *     to true in the options to the contstructor (cannot be changed after
+     *     instantiation).
+     */
+    curve: false,
+    
+    /**
+     * Property: multiCurve
+     * {Boolean} Write gml:MultiCurve instead of gml:MultiLineString.  Since
+     *     the latter is deprecated in GML 3, the default is true.  To write
+     *     gml:MultiLineString instead of gml:MultiCurve, set multiCurve to
+     *     false in the options to the constructor (cannot be changed after
+     *     instantiation).
+     */
+    multiCurve: true,
+    
+    /**
+     * Property: surface
+     * {Boolean} Write gml:Surface instead of gml:Polygon elements.  This also
+     *     affects the elements in multi-part geometries.  Default is false.
+     *     To write gml:Surface elements instead of gml:Polygon, set surface
+     *     to true in the options to the contstructor (cannot be changed after
+     *     instantiation).
+     */
+    surface: false,
+
+    /**
+     * Property: multiSurface
+     * {Boolean} Write gml:multiSurface instead of gml:MultiPolygon.  Since
+     *     the latter is deprecated in GML 3, the default is true.  To write
+     *     gml:MultiPolygon instead of gml:multiSurface, set multiSurface to
+     *     false in the options to the constructor (cannot be changed after
+     *     instantiation).
+     */
+    multiSurface: true,
+
+    /**
+     * Constructor: OpenLayers.Format.GML.v3
+     * Create a parser for GML v3.
      *
      * Parameters:
      * options - {Object} An optional object whose properties will be set on
      *     this instance.
+     *
+     * Valid options properties:
+     * featureType - {String} Local (without prefix) feature typeName (required).
+     * featureNS - {String} Feature namespace (required).
+     * geometryName - {String} Geometry element name.
      */
+    initialize: function(options) {
+        OpenLayers.Format.GML.Base.prototype.initialize.apply(this, [options]);
+    },
 
     /**
      * Property: readers
@@ -6958,18 +12703,394 @@ OpenLayers.Format.WFSCapabilities.v1_1_0 = OpenLayers.Class(
      *     from the parent.
      */
     readers: {
-        "wfs": OpenLayers.Util.applyDefaults({
-            "DefaultSRS": function(node, obj) {
-                var defaultSRS = this.getChildValue(node);
-                if (defaultSRS) {
-                    obj.srs = defaultSRS;
+        "gml": OpenLayers.Util.applyDefaults({
+            "_inherit": function(node, obj, container) {
+                // SRSReferenceGroup attributes
+                var dim = parseInt(node.getAttribute("srsDimension"), 10) ||
+                    (container && container.srsDimension);
+                if (dim) {
+                    obj.srsDimension = dim;
                 }
+            },
+            "featureMembers": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "Curve": function(node, container) {
+                var obj = {points: []};
+                this.readers.gml._inherit.apply(this, [node, obj, container]);
+                this.readChildNodes(node, obj);
+                if(!container.components) {
+                    container.components = [];
+                }
+                container.components.push(
+                    new OpenLayers.Geometry.LineString(obj.points)
+                );
+            },
+            "segments": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "LineStringSegment": function(node, container) {
+                var obj = {};
+                this.readChildNodes(node, obj);
+                if(obj.points) {
+                    Array.prototype.push.apply(container.points, obj.points);
+                }
+            },
+            "pos": function(node, obj) {
+                var str = this.getChildValue(node).replace(
+                    this.regExes.trimSpace, ""
+                );
+                var coords = str.split(this.regExes.splitSpace);
+                var point;
+                if(this.xy) {
+                    point = new OpenLayers.Geometry.Point(
+                        coords[0], coords[1], coords[2]
+                    );
+                } else {
+                    point = new OpenLayers.Geometry.Point(
+                        coords[1], coords[0], coords[2]
+                    );
+                }
+                if(!!!obj.points) {
+                    obj.points = [];
+                }
+                obj.points.push(point);
+            },
+            "posList": function(node, obj) {
+                var str = this.getChildValue(node).replace(
+                    this.regExes.trimSpace, ""
+                );
+                var coords = str.split(this.regExes.splitSpace);
+                // The "dimension" attribute is from the GML 3.0.1 spec.
+                var dim = obj.srsDimension ||
+                    parseInt(node.getAttribute("srsDimension") || node.getAttribute("dimension"), 10) || 2;
+                var j, x, y, z;
+                var numPoints = coords.length / dim;
+                var points = new Array(numPoints);
+                for(var i=0, len=coords.length; i<len; i += dim) {
+                    x = coords[i];
+                    y = coords[i+1];
+                    z = (dim == 2) ? undefined : coords[i+2];
+                    if (this.xy) {
+                        points[i/dim] = new OpenLayers.Geometry.Point(x, y, z);
+                    } else {
+                        points[i/dim] = new OpenLayers.Geometry.Point(y, x, z);
+                    }
+                }
+                obj.points = points;
+            },
+            "Surface": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "patches": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "PolygonPatch": function(node, obj) {
+                this.readers.gml.Polygon.apply(this, [node, obj]);
+            },
+            "exterior": function(node, container) {
+                var obj = {};
+                this.readChildNodes(node, obj);
+                container.outer = obj.components[0];
+            },
+            "interior": function(node, container) {
+                var obj = {};
+                this.readChildNodes(node, obj);
+                container.inner.push(obj.components[0]);
+            },
+            "MultiCurve": function(node, container) {
+                var obj = {components: []};
+                this.readers.gml._inherit.apply(this, [node, obj, container]);
+                this.readChildNodes(node, obj);
+                if(obj.components.length > 0) {
+                    container.components = [
+                        new OpenLayers.Geometry.MultiLineString(obj.components)
+                    ];
+                }
+            },
+            "curveMember": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "MultiSurface": function(node, container) {
+                var obj = {components: []};
+                this.readers.gml._inherit.apply(this, [node, obj, container]);
+                this.readChildNodes(node, obj);
+                if(obj.components.length > 0) {
+                    container.components = [
+                        new OpenLayers.Geometry.MultiPolygon(obj.components)
+                    ];
+                }
+            },
+            "surfaceMember": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "surfaceMembers": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "pointMembers": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "lineStringMembers": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "polygonMembers": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "geometryMembers": function(node, obj) {
+                this.readChildNodes(node, obj);
+            },
+            "Envelope": function(node, container) {
+                var obj = {points: new Array(2)};
+                this.readChildNodes(node, obj);
+                if(!container.components) {
+                    container.components = [];
+                }
+
+                var min = obj.points[0];
+                var max = obj.points[1];
+                container.components.push(
+                    new OpenLayers.Bounds(min.x, min.y, max.x, max.y)
+                );
+            },
+            "lowerCorner": function(node, container) {
+                var obj = {};
+                this.readers.gml.pos.apply(this, [node, obj]);
+                container.points[0] = obj.points[0];
+            },
+            "upperCorner": function(node, container) {
+                var obj = {};
+                this.readers.gml.pos.apply(this, [node, obj]);
+                container.points[1] = obj.points[0];
             }
-        }, OpenLayers.Format.WFSCapabilities.v1.prototype.readers["wfs"]),
-        "ows": OpenLayers.Format.OWSCommon.v1.prototype.readers.ows
+        }, OpenLayers.Format.GML.Base.prototype.readers["gml"]),            
+        "feature": OpenLayers.Format.GML.Base.prototype.readers["feature"],
+        "wfs": OpenLayers.Format.GML.Base.prototype.readers["wfs"]
+    },
+    
+    /**
+     * Method: write
+     *
+     * Parameters:
+     * features - {Array(<OpenLayers.Feature.Vector>) | OpenLayers.Feature.Vector}
+     *     An array of features or a single feature.
+     *
+     * Returns:
+     * {String} Given an array of features, a doc with a gml:featureMembers
+     *     element will be returned.  Given a single feature, a doc with a
+     *     gml:featureMember element will be returned.
+     */
+    write: function(features) {
+        var name;
+        if(OpenLayers.Util.isArray(features)) {
+            name = "featureMembers";
+        } else {
+            name = "featureMember";
+        }
+        var root = this.writeNode("gml:" + name, features);
+        this.setAttributeNS(
+            root, this.namespaces["xsi"],
+            "xsi:schemaLocation", this.schemaLocation
+        );
+
+        return OpenLayers.Format.XML.prototype.write.apply(this, [root]);
     },
 
-    CLASS_NAME: "OpenLayers.Format.WFSCapabilities.v1_1_0" 
+    /**
+     * Property: writers
+     * As a compliment to the readers property, this structure contains public
+     *     writing functions grouped by namespace alias and named like the
+     *     node names they produce.
+     */
+    writers: {
+        "gml": OpenLayers.Util.applyDefaults({
+            "featureMembers": function(features) {
+                var node = this.createElementNSPlus("gml:featureMembers");
+                for(var i=0, len=features.length; i<len; ++i) {
+                    this.writeNode("feature:_typeName", features[i], node);
+                }
+                return node;
+            },
+            "Point": function(geometry) {
+                var node = this.createElementNSPlus("gml:Point");
+                this.writeNode("pos", geometry, node);
+                return node;
+            },
+            "pos": function(point) {
+                // only 2d for simple features profile
+                var pos = (this.xy) ?
+                    (point.x + " " + point.y) : (point.y + " " + point.x);
+                return this.createElementNSPlus("gml:pos", {
+                    value: pos
+                });
+            },
+            "LineString": function(geometry) {
+                var node = this.createElementNSPlus("gml:LineString");
+                this.writeNode("posList", geometry.components, node);
+                return node;
+            },
+            "Curve": function(geometry) {
+                var node = this.createElementNSPlus("gml:Curve");
+                this.writeNode("segments", geometry, node);
+                return node;
+            },
+            "segments": function(geometry) {
+                var node = this.createElementNSPlus("gml:segments");
+                this.writeNode("LineStringSegment", geometry, node);
+                return node;
+            },
+            "LineStringSegment": function(geometry) {
+                var node = this.createElementNSPlus("gml:LineStringSegment");
+                this.writeNode("posList", geometry.components, node);
+                return node;
+            },
+            "posList": function(points) {
+                // only 2d for simple features profile
+                var len = points.length;
+                var parts = new Array(len);
+                var point;
+                for(var i=0; i<len; ++i) {
+                    point = points[i];
+                    if(this.xy) {
+                        parts[i] = point.x + " " + point.y;
+                    } else {
+                        parts[i] = point.y + " " + point.x;
+                    }
+                }
+                return this.createElementNSPlus("gml:posList", {
+                    value: parts.join(" ")
+                }); 
+            },
+            "Surface": function(geometry) {
+                var node = this.createElementNSPlus("gml:Surface");
+                this.writeNode("patches", geometry, node);
+                return node;
+            },
+            "patches": function(geometry) {
+                var node = this.createElementNSPlus("gml:patches");
+                this.writeNode("PolygonPatch", geometry, node);
+                return node;
+            },
+            "PolygonPatch": function(geometry) {
+                var node = this.createElementNSPlus("gml:PolygonPatch", {
+                    attributes: {interpolation: "planar"}
+                });
+                this.writeNode("exterior", geometry.components[0], node);
+                for(var i=1, len=geometry.components.length; i<len; ++i) {
+                    this.writeNode(
+                        "interior", geometry.components[i], node
+                    );
+                }
+                return node;
+            },
+            "Polygon": function(geometry) {
+                var node = this.createElementNSPlus("gml:Polygon");
+                this.writeNode("exterior", geometry.components[0], node);
+                for(var i=1, len=geometry.components.length; i<len; ++i) {
+                    this.writeNode(
+                        "interior", geometry.components[i], node
+                    );
+                }
+                return node;
+            },
+            "exterior": function(ring) {
+                var node = this.createElementNSPlus("gml:exterior");
+                this.writeNode("LinearRing", ring, node);
+                return node;
+            },
+            "interior": function(ring) {
+                var node = this.createElementNSPlus("gml:interior");
+                this.writeNode("LinearRing", ring, node);
+                return node;
+            },
+            "LinearRing": function(ring) {
+                var node = this.createElementNSPlus("gml:LinearRing");
+                this.writeNode("posList", ring.components, node);
+                return node;
+            },
+            "MultiCurve": function(geometry) {
+                var node = this.createElementNSPlus("gml:MultiCurve");
+                var components = geometry.components || [geometry];
+                for(var i=0, len=components.length; i<len; ++i) {
+                    this.writeNode("curveMember", components[i], node);
+                }
+                return node;
+            },
+            "curveMember": function(geometry) {
+                var node = this.createElementNSPlus("gml:curveMember");
+                if(this.curve) {
+                    this.writeNode("Curve", geometry, node);
+                } else {
+                    this.writeNode("LineString", geometry, node);
+                }
+                return node;
+            },
+            "MultiSurface": function(geometry) {
+                var node = this.createElementNSPlus("gml:MultiSurface");
+                var components = geometry.components || [geometry];
+                for(var i=0, len=components.length; i<len; ++i) {
+                    this.writeNode("surfaceMember", components[i], node);
+                }
+                return node;
+            },
+            "surfaceMember": function(polygon) {
+                var node = this.createElementNSPlus("gml:surfaceMember");
+                if(this.surface) {
+                    this.writeNode("Surface", polygon, node);
+                } else {
+                    this.writeNode("Polygon", polygon, node);
+                }
+                return node;
+            },
+            "Envelope": function(bounds) {
+                var node = this.createElementNSPlus("gml:Envelope");
+                this.writeNode("lowerCorner", bounds, node);
+                this.writeNode("upperCorner", bounds, node);
+                // srsName attribute is required for gml:Envelope
+                if(this.srsName) {
+                    node.setAttribute("srsName", this.srsName);
+                }
+                return node;
+            },
+            "lowerCorner": function(bounds) {
+                // only 2d for simple features profile
+                var pos = (this.xy) ?
+                    (bounds.left + " " + bounds.bottom) :
+                    (bounds.bottom + " " + bounds.left);
+                return this.createElementNSPlus("gml:lowerCorner", {
+                    value: pos
+                });
+            },
+            "upperCorner": function(bounds) {
+                // only 2d for simple features profile
+                var pos = (this.xy) ?
+                    (bounds.right + " " + bounds.top) :
+                    (bounds.top + " " + bounds.right);
+                return this.createElementNSPlus("gml:upperCorner", {
+                    value: pos
+                });
+            }
+        }, OpenLayers.Format.GML.Base.prototype.writers["gml"]),
+        "feature": OpenLayers.Format.GML.Base.prototype.writers["feature"],
+        "wfs": OpenLayers.Format.GML.Base.prototype.writers["wfs"]
+    },
+
+    /**
+     * Method: setGeometryTypes
+     * Sets the <geometryTypes> mapping.
+     */
+    setGeometryTypes: function() {
+        this.geometryTypes = {
+            "OpenLayers.Geometry.Point": "Point",
+            "OpenLayers.Geometry.MultiPoint": "MultiPoint",
+            "OpenLayers.Geometry.LineString": (this.curve === true) ? "Curve": "LineString",
+            "OpenLayers.Geometry.MultiLineString": (this.multiCurve === false) ? "MultiLineString" : "MultiCurve",
+            "OpenLayers.Geometry.Polygon": (this.surface === true) ? "Surface" : "Polygon",
+            "OpenLayers.Geometry.MultiPolygon": (this.multiSurface === false) ? "MultiPolygon" : "MultiSurface",
+            "OpenLayers.Geometry.Collection": "GeometryCollection"
+        };
+    },
+    
+    CLASS_NAME: "OpenLayers.Format.GML.v3" 
 
 });
 /* ======================================================================
@@ -9256,5 +15377,202 @@ OpenLayers.Format.WFSCapabilities.v1_0_0 = OpenLayers.Class(
     },
     
     CLASS_NAME: "OpenLayers.Format.WFSCapabilities.v1_0_0" 
+
+});
+/* ======================================================================
+    OpenLayers/Format/GML/v2.js
+   ====================================================================== */
+
+/* Copyright (c) 2006-2013 by OpenLayers Contributors (see authors.txt for
+ * full list of contributors). Published under the 2-clause BSD license.
+ * See license.txt in the OpenLayers distribution or repository for the
+ * full text of the license. */
+
+/**
+ * @requires OpenLayers/Format/GML/Base.js
+ */
+
+/**
+ * Class: OpenLayers.Format.GML.v2
+ * Parses GML version 2.
+ *
+ * Inherits from:
+ *  - <OpenLayers.Format.GML.Base>
+ */
+OpenLayers.Format.GML.v2 = OpenLayers.Class(OpenLayers.Format.GML.Base, {
+    
+    /**
+     * Property: schemaLocation
+     * {String} Schema location for a particular minor version.
+     */
+    schemaLocation: "http://www.opengis.net/gml http://schemas.opengis.net/gml/2.1.2/feature.xsd",
+
+    /**
+     * Constructor: OpenLayers.Format.GML.v2
+     * Create a parser for GML v2.
+     *
+     * Parameters:
+     * options - {Object} An optional object whose properties will be set on
+     *     this instance.
+     *
+     * Valid options properties:
+     * featureType - {String} Local (without prefix) feature typeName (required).
+     * featureNS - {String} Feature namespace (required).
+     * geometryName - {String} Geometry element name.
+     */
+    initialize: function(options) {
+        OpenLayers.Format.GML.Base.prototype.initialize.apply(this, [options]);
+    },
+
+    /**
+     * Property: readers
+     * Contains public functions, grouped by namespace prefix, that will
+     *     be applied when a namespaced node is found matching the function
+     *     name.  The function will be applied in the scope of this parser
+     *     with two arguments: the node being read and a context object passed
+     *     from the parent.
+     */
+    readers: {
+        "gml": OpenLayers.Util.applyDefaults({
+            "outerBoundaryIs": function(node, container) {
+                var obj = {};
+                this.readChildNodes(node, obj);
+                container.outer = obj.components[0];
+            },
+            "innerBoundaryIs": function(node, container) {
+                var obj = {};
+                this.readChildNodes(node, obj);
+                container.inner.push(obj.components[0]);
+            },
+            "Box": function(node, container) {
+                var obj = {};
+                this.readChildNodes(node, obj);
+                if(!container.components) {
+                    container.components = [];
+                }
+                var min = obj.points[0];
+                var max = obj.points[1];
+                container.components.push(
+                    new OpenLayers.Bounds(min.x, min.y, max.x, max.y)
+                );
+            }
+        }, OpenLayers.Format.GML.Base.prototype.readers["gml"]),
+        "feature": OpenLayers.Format.GML.Base.prototype.readers["feature"],
+        "wfs": OpenLayers.Format.GML.Base.prototype.readers["wfs"]
+    },
+
+    /**
+     * Method: write
+     *
+     * Parameters:
+     * features - {Array(<OpenLayers.Feature.Vector>) | OpenLayers.Feature.Vector}
+     *     An array of features or a single feature.
+     *
+     * Returns:
+     * {String} Given an array of features, a doc with a gml:featureMembers
+     *     element will be returned.  Given a single feature, a doc with a
+     *     gml:featureMember element will be returned.
+     */
+    write: function(features) {
+        var name;
+        if(OpenLayers.Util.isArray(features)) {
+            // GML2 only has abstract feature collections
+            // wfs provides a feature collection from a well-known schema
+            name = "wfs:FeatureCollection";
+        } else {
+            name = "gml:featureMember";
+        }
+        var root = this.writeNode(name, features);
+        this.setAttributeNS(
+            root, this.namespaces["xsi"],
+            "xsi:schemaLocation", this.schemaLocation
+        );
+
+        return OpenLayers.Format.XML.prototype.write.apply(this, [root]);
+    },
+
+    /**
+     * Property: writers
+     * As a compliment to the readers property, this structure contains public
+     *     writing functions grouped by namespace alias and named like the
+     *     node names they produce.
+     */
+    writers: {
+        "gml": OpenLayers.Util.applyDefaults({
+            "Point": function(geometry) {
+                var node = this.createElementNSPlus("gml:Point");
+                this.writeNode("coordinates", [geometry], node);
+                return node;
+            },
+            "coordinates": function(points) {
+                var numPoints = points.length;
+                var parts = new Array(numPoints);
+                var point;
+                for(var i=0; i<numPoints; ++i) {
+                    point = points[i];
+                    if(this.xy) {
+                        parts[i] = point.x + "," + point.y;
+                    } else {
+                        parts[i] = point.y + "," + point.x;
+                    }
+                    if(point.z != undefined) { // allow null or undefined
+                        parts[i] += "," + point.z;
+                    }
+                }
+                return this.createElementNSPlus("gml:coordinates", {
+                    attributes: {
+                        decimal: ".", cs: ",", ts: " "
+                    },
+                    value: (numPoints == 1) ? parts[0] : parts.join(" ")
+                });
+            },
+            "LineString": function(geometry) {
+                var node = this.createElementNSPlus("gml:LineString");
+                this.writeNode("coordinates", geometry.components, node);
+                return node;
+            },
+            "Polygon": function(geometry) {
+                var node = this.createElementNSPlus("gml:Polygon");
+                this.writeNode("outerBoundaryIs", geometry.components[0], node);
+                for(var i=1; i<geometry.components.length; ++i) {
+                    this.writeNode(
+                        "innerBoundaryIs", geometry.components[i], node
+                    );
+                }
+                return node;
+            },
+            "outerBoundaryIs": function(ring) {
+                var node = this.createElementNSPlus("gml:outerBoundaryIs");
+                this.writeNode("LinearRing", ring, node);
+                return node;
+            },
+            "innerBoundaryIs": function(ring) {
+                var node = this.createElementNSPlus("gml:innerBoundaryIs");
+                this.writeNode("LinearRing", ring, node);
+                return node;
+            },
+            "LinearRing": function(ring) {
+                var node = this.createElementNSPlus("gml:LinearRing");
+                this.writeNode("coordinates", ring.components, node);
+                return node;
+            },
+            "Box": function(bounds) {
+                var node = this.createElementNSPlus("gml:Box");
+                this.writeNode("coordinates", [
+                    {x: bounds.left, y: bounds.bottom},
+                    {x: bounds.right, y: bounds.top}
+                ], node);
+                // srsName attribute is optional for gml:Box
+                if(this.srsName) {
+                    node.setAttribute("srsName", this.srsName);
+                }
+                return node;
+            }
+        }, OpenLayers.Format.GML.Base.prototype.writers["gml"]),
+        "feature": OpenLayers.Format.GML.Base.prototype.writers["feature"],
+        "wfs": OpenLayers.Format.GML.Base.prototype.writers["wfs"]
+    },
+    
+    CLASS_NAME: "OpenLayers.Format.GML.v2" 
 
 });

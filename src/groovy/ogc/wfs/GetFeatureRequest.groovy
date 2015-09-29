@@ -17,6 +17,7 @@ class GetFeatureRequest
   String request
 
   String typeName
+  String namespace
   String filter
   String resultType
   String outputFormat

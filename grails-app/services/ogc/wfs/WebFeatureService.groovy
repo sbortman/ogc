@@ -469,11 +469,50 @@ class WebFeatureService
   {
     println wfsParams
 
-    def (namespacePrefix, layerName) = wfsParams?.typeName?.split( ':' )
+    def x = wfsParams?.typeName?.split( ':' )
+    def namespacePrefix
+    def layerName
+
+    switch ( x.size() )
+    {
+    case 1:
+      layerName = x?.last()
+      break
+    case 2:
+      (namespacePrefix, layerName) = x
+      break
+    }
+
+    def namespaceInfo
+
+    if ( wfsParams.namespace )
+    {
+      def pattern = /xmlns\(\w+=(.*)\)/
+      def matcher = wfsParams?.namespace =~ pattern
+
+      if ( matcher )
+      {
+        def uri = matcher[0][1]
+
+        namespaceInfo = NamespaceInfo.findByUri( uri )
+      }
+      else
+      {
+        println "${'*' * 20} No Match ${'*' * 20}"
+      }
+
+      layerName = wfsParams?.typeName?.split( ':' )?.last()
+    }
+    else
+    {
+      namespaceInfo = NamespaceInfo.findByPrefix( namespacePrefix )
+    }
+
+    println "${namespaceInfo} ${layerName}"
 
     LayerInfo layerInfo = LayerInfo.where {
-      name == layerName && workspaceInfo.namespaceInfo.prefix == namespacePrefix
-    }.list().first()
+      name == layerName && workspaceInfo.namespaceInfo == namespaceInfo
+    }.get()
 
     def xml = null
 

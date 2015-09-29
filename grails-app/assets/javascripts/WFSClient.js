@@ -74,7 +74,7 @@ OGC.WFS.Client = OpenLayers.Class( {
             //that.featureTypes = localFeatureTypes;
             //console.log( 'fetching...' );
 
-            OpenLayers.Request.GET({
+            OpenLayers.Request.GET( {
                 url: this.wfsServer,
                 async: isAsync,
                 params: params,
@@ -82,7 +82,8 @@ OGC.WFS.Client = OpenLayers.Class( {
                 {
 
                     var doc = request.responseXML;
-                    if (!doc || !doc.documentElement) {
+                    if ( !doc || !doc.documentElement )
+                    {
                         doc = request.responseText;
                     }
 
@@ -116,7 +117,7 @@ OGC.WFS.Client = OpenLayers.Class( {
                     //return featureTypeNames;
 
                 }
-            });
+            } );
             that.featureTypes = localFeatureTypes;
 
         }
@@ -136,7 +137,7 @@ OGC.WFS.Client = OpenLayers.Class( {
 
         return this.featureTypes;
     },
-    getFeatureTypeSchemas: function ()
+    GTypeSchemas: function ()
     {
         var that = this;
 
@@ -161,7 +162,7 @@ OGC.WFS.Client = OpenLayers.Class( {
         var isAsync = (callback instanceof Function);
         var results;
 
-        OpenLayers.Request.GET({
+        OpenLayers.Request.GET( {
             url: this.wfsServer,
             params: params,
             //dataType: "html",
@@ -169,7 +170,8 @@ OGC.WFS.Client = OpenLayers.Class( {
             success: function ( request )
             {
                 var doc = request.responseXML;
-                if (!doc || !doc.documentElement) {
+                if ( !doc || !doc.documentElement )
+                {
                     doc = request.responseText;
                 }
 
@@ -200,18 +202,28 @@ OGC.WFS.Client = OpenLayers.Class( {
         };
 
         var isAsync = (callback instanceof Function);
+        var format = new OpenLayers.Format.GML();
 
-        OpenLayers.Request.GET({
+        OpenLayers.Request.GET( {
             url: this.wfsServer,
             params: params,
             success: function ( request )
             {
-                //var results = $.parseJSON( request );
-                if (isAsync){
-                    callback(request);
+                var doc = request.responseXML;
+
+                if ( !doc || !doc.documentElement )
+                {
+                    doc = request.responseText;
                 }
 
+                // use the tool to parse the data
+                var response = (format.read( doc ));
 
+                //var results = $.parseJSON( request );
+                if ( isAsync )
+                {
+                    callback( response );
+                }
             },
             error: function ( error )
             {
@@ -220,14 +232,13 @@ OGC.WFS.Client = OpenLayers.Class( {
         } );
 
 
-
     },
     CLASS_NAME: "OGC.WFS.Client"
 } );
 
 var WFSClient = (function ()
 {
-    function init(params)
+    function init( params )
     {
 
 //        var wfsServer = "http://localhost/geoserver/wfs";
@@ -238,17 +249,18 @@ var WFSClient = (function ()
 
         console.log( wfsClient.getFeatureTypes() );
 
-        console.log( wfsClient.getFeatureTypeSchema('states', 'http://www.openplans.org/topp'));
+        console.log( wfsClient.getFeatureTypeSchema( 'states', 'http://www.openplans.org/topp' ) );
 
 
         wfsClient.getFeature(
             'states',
             'http://www.openplans.org/topp',
             "STATE_ABBR='IN'",
-            function (it){
-                console.log(it);
+            function ( it )
+            {
+                console.log( it );
             }
-         );
+        );
 
 
         //
