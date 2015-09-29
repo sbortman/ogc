@@ -137,16 +137,6 @@ OGC.WFS.Client = OpenLayers.Class( {
 
         return this.featureTypes;
     },
-    GTypeSchemas: function ()
-    {
-        var that = this;
-
-        return this.getFeatureTypes().map( function ( it )
-        {
-            console.log( it );
-            return that.getFeatureTypeSchema( it.name );
-        } );
-    },
     getFeatureTypeSchema: function ( featureTypeName, namespace, callback )
     {
         var formatter2 = new OpenLayers.Format.WFSDescribeFeatureType();
@@ -195,10 +185,10 @@ OGC.WFS.Client = OpenLayers.Class( {
             service: 'WFS',
             version: '1.1.0',
             request: 'GetFeature',
-            typeName: 'ns1:' + featureTypeName,
-            namespace: 'xmlns(ns1=' + namespace + ')',
-            outputFormat: 'GML',
-            filter: filter || ''
+            typeName: 'topp:' + featureTypeName,
+            namespace: 'xmlns(topp=' + namespace + ')',
+            outputFormat: 'GML3',
+            cql_filter: filter || ''
         };
 
         var isAsync = (callback instanceof Function);
@@ -209,6 +199,8 @@ OGC.WFS.Client = OpenLayers.Class( {
             params: params,
             success: function ( request )
             {
+                //console.log(request);
+
                 var doc = request.responseXML;
 
                 if ( !doc || !doc.documentElement )
@@ -219,7 +211,8 @@ OGC.WFS.Client = OpenLayers.Class( {
                 // use the tool to parse the data
                 var response = (format.read( doc ));
 
-                //var results = $.parseJSON( request );
+                //console.log( response );
+
                 if ( isAsync )
                 {
                     callback( response );
@@ -230,8 +223,6 @@ OGC.WFS.Client = OpenLayers.Class( {
                 console.log( error );
             }
         } );
-
-
     },
     CLASS_NAME: "OGC.WFS.Client"
 } );
@@ -240,6 +231,10 @@ var WFSClient = (function ()
 {
     function init( params )
     {
+        if ( params.wfsProxy )
+        {
+            OpenLayers.ProxyHost = params.wfsProxy;
+        }
 
 //        var wfsServer = "http://localhost/geoserver/wfs";
 //        var wfsServer = 'http://demo.boundlessgeo.com/geoserver/wfs';
