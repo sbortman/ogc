@@ -264,7 +264,7 @@ OGC.WFS.Client = OpenLayers.Class( {
             typeName: prefix + ':' + typeName,
             namespace: 'xmlns(' + prefix + '=' + namespace + ')',
             outputFormat: 'GML3',
-            cql_filter: filter || ''
+            filter: filter || ''
         };
 
         var isAsync = (callback instanceof Function);
@@ -320,6 +320,7 @@ var WFSClient = (function ()
 
         console.log( 'getFeatureTypes', wfsClient.getFeatureTypes() );
 
+        /*
         console.log( 'getFeatureTypeSchema for topp:states',
             wfsClient.getFeatureTypeSchema( 'states', 'http://www.openplans.org/topp' ) );
 
@@ -332,7 +333,11 @@ var WFSClient = (function ()
                 console.log( "getFeature for topp:states where STATE_ABBR='IN'", it );
             }
         );
+        */
 
+        wfsClient.getFeature('raster_entry', 'http://omar.ossim.org', "file_type='nitf'", function(it) {
+            console.log('getFeature', it);
+        } );
 
         //
         //wfsClient.getFeatureTypes( function ( w )
@@ -387,7 +392,7 @@ var TestWFS = (function ()
         } );
     }
 
-    function getCapabilities()
+    function getCapabilities( callback )
     {
         var capabilities = new OpenLayers.Format.WFSCapabilities();
 
@@ -407,10 +412,14 @@ var TestWFS = (function ()
                 }
 
                 //console.log(doc);
+
                 var response = capabilities.read( doc );
 
+                if ( callback )
+                {
+                    callback( response );
+                }
                 // console.log('parser', capabilities.parser.CLASS_NAME);
-                console.log( 'getCapabilities', response );
             },
             failure: function ()
             {
@@ -420,7 +429,7 @@ var TestWFS = (function ()
         } );
     }
 
-    function describeFeatureType()
+    function describeFeatureType( typeName, callback )
     {
         var schema = new OpenLayers.Format.WFSDescribeFeatureType();
 
@@ -430,7 +439,7 @@ var TestWFS = (function ()
                 SERVICE: "WFS",
                 VERSION: "1.1.0",
                 REQUEST: "DescribeFeatureType",
-                typeName: 'topp:states'
+                typeName: typeName
             },
             success: function ( request )
             {
@@ -443,7 +452,10 @@ var TestWFS = (function ()
                 //console.log(doc);
                 var response = schema.read( doc );
 
-                console.log( 'describeFeatureType for topp:states', response );
+                if ( callback )
+                {
+                    callback( response );
+                }
             },
             failure: function ()
             {
@@ -453,14 +465,20 @@ var TestWFS = (function ()
         } );
     }
 
-    function getFeature()
+    function convertCqlToXml( filterCql )
     {
-        var gml = new OpenLayers.Format.GML.v3();
         var cql = new OpenLayers.Format.CQL();
         var xml = new OpenLayers.Format.XML();
-        var filter = xml.write( new OpenLayers.Format.Filter( {version: "1.1.0"} ).write( cql.read( "STATE_ABBR='IN'" ) ) );
+        var filterXml = xml.write( new OpenLayers.Format.Filter( {version: "1.1.0"} ).write( cql.read( filterCql ) ) );
 
-        //console.log(filter);
+        return filterXml;
+    }
+
+    function getFeature( typeName, filter, callback )
+    {
+        var gml = new OpenLayers.Format.GML.v3();
+
+        // console.log( 'filter', filter );
 
         OpenLayers.Request.GET( {
             url: wfsServer,
@@ -468,7 +486,7 @@ var TestWFS = (function ()
                 SERVICE: "WFS",
                 VERSION: "1.1.0",
                 REQUEST: "GetFeature",
-                typeName: 'topp:states',
+                typeName: typeName,
                 filter: filter,
                 outputFormat: 'gml3'
             },
@@ -483,7 +501,10 @@ var TestWFS = (function ()
                 //console.log(doc);
                 var response = gml.read( doc );
 
-                console.log( 'getFeature', response );
+                if ( callback )
+                {
+                    callback( response );
+                }
             },
             failure: function ()
             {
@@ -498,9 +519,34 @@ var TestWFS = (function ()
         wfsServer = params.wfsServer;
         OpenLayers.ProxyHost = params.wfsProxy;
 
-        getCapabilities();
-        //describeFeatureType();
-        //getFeature();
+        getCapabilities( function ( response )
+        {
+            console.log( 'getCapabilities', response );
+
+            var featureTypes = response.featureTypeList.featureTypes;
+
+            $.each( featureTypes, function ( i, featureType )
+            {
+                describeFeatureType( featureType.name, function ( it )
+                {
+                    var prefix = it.targetPrefix;
+                    var typeName = it.featureTypes[0].typeName;
+
+                    console.log( 'describeFeatureType for ' + prefix + ':' + typeName, it );
+                } );
+            } );
+        } );
+
+        var typeName = 'topp:states';
+        var cqlFilter = "STATE_ABBR='IN'";
+
+        getFeature( typeName, convertCqlToXml( cqlFilter ), function ( it )
+        {
+            console.log( 'getFeature for ' + typeName + ' where ' + cqlFilter, it );
+        } );
     }
 
+    return {
+        init: init
+    };
 })();

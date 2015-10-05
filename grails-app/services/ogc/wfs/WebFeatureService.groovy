@@ -3,7 +3,10 @@ package ogc.wfs
 import geoscript.feature.Schema
 import geoscript.filter.Filter
 import geoscript.layer.Layer
-import geoscript.layer.io.GmlWriter
+
+//import geoscript.layer.io.GmlWriter
+import geoscript.feature.io.GmlWriter
+
 import geoscript.workspace.Workspace
 import groovy.xml.StreamingMarkupBuilder
 
@@ -32,12 +35,13 @@ class WebFeatureService
 
   static final Map<String, String> ogcNamespacesByPrefix = [
       // These are OGC/XML specs
-      xsi: "http://www.w3.org/2001/XMLSchema-instance",
-      wfs: "http://www.opengis.net/wfs",
-      ows: "http://www.opengis.net/ows",
       gml: "http://www.opengis.net/gml",
       ogc: "http://www.opengis.net/ogc",
+      ows: "http://www.opengis.net/ows",
+      wfs: "http://www.opengis.net/wfs",
       xlink: "http://www.w3.org/1999/xlink",
+      xs: "http://www.w3.org/2001/XMLSchema",
+      xsi: "http://www.w3.org/2001/XMLSchema-instance",
   ]
 
   static final List<String> outputFormats = [
@@ -465,6 +469,7 @@ class WebFeatureService
     [contentType: 'text/xml', buffer: xml]
   }
 
+/*
   def getFeature(GetFeatureRequest wfsParams)
   {
     println wfsParams
@@ -557,5 +562,146 @@ class WebFeatureService
 
     [contentType: 'text/xml', buffer: xml]
   }
+*/
 
+  LayerInfo findLayerInfo(GetFeatureRequest wfsParams)
+  {
+    def x = wfsParams?.typeName?.split( ':' )
+    def namespacePrefix
+    def layerName
+
+    switch ( x?.size() )
+    {
+    case 1:
+      layerName = x?.last()
+      break
+    case 2:
+      (namespacePrefix, layerName) = x
+      break
+    }
+
+    def namespaceInfo
+
+    if ( wfsParams?.namespace )
+    {
+      def pattern = /xmlns\(\w+=(.*)\)/
+      def matcher = wfsParams?.namespace =~ pattern
+
+      if ( matcher )
+      {
+        def uri = matcher[0][1]
+
+        namespaceInfo = NamespaceInfo.findByUri( uri )
+      }
+      else
+      {
+        println "${'*' * 20} No Match ${'*' * 20}"
+      }
+
+      layerName = wfsParams?.typeName?.split( ':' )?.last()
+    }
+    else
+    {
+      namespaceInfo = NamespaceInfo.findByPrefix( namespacePrefix )
+    }
+
+    println "${namespaceInfo} ${layerName}"
+
+    LayerInfo.where {
+      name == layerName && workspaceInfo.namespaceInfo == namespaceInfo
+    }.get()
+  }
+
+  def getFeature(GetFeatureRequest wfsParams)
+  {
+    LayerInfo layerInfo = findLayerInfo( wfsParams )
+    def xml
+
+
+    def wfsParamNames = [
+        'maxFeatures', 'startIndex', 'propertyName', 'sortBy', 'filter'
+    ]
+
+    def options = wfsParamNames.inject( [:] ) { options, wfsParamName ->
+      if ( wfsParams[wfsParamName] )
+      {
+        switch ( wfsParamName )
+        {
+        case 'maxFeatures':
+          options['max'] = wfsParams[wfsParamName]
+          break
+        case 'startIndex':
+          options['start'] = wfsParams[wfsParamName]
+          break
+        case 'propertyName':
+          options['fields'] = wfsParams[wfsParamName]?.split( ',' ) as List<String>
+          break
+        case 'sortBy':
+          options['sort'] = wfsParams[wfsParamName].split( ',' )?.collect {
+            def props = it.split( ' ' ) as List
+            if ( props.size() == 2 )
+            {
+              props[1] = ( props[1].equalsIgnoreCase( 'D' ) ) ? 'DESC' : 'ASC'
+            }
+            props
+          }
+          break
+        default:
+          options[wfsParamName] = wfsParams[wfsParamName]
+        }
+      }
+      options
+    }
+
+    println options
+
+    Workspace.withWorkspace( layerInfo?.workspaceInfo?.workspaceParams ) { workspace ->
+      def layer = workspace[layerInfo.name]
+      def writer = new GmlWriter()
+      def matched = layer.count( wfsParams.filter ?: Filter.PASS )
+      def count = ( wfsParams.maxFeatures ) ? Math.min( matched, wfsParams.maxFeatures ) : matched
+      def namespaceInfo = layerInfo?.workspaceInfo?.namespaceInfo
+
+      def schemaLocations = [
+          namespaceInfo.uri,
+          grailsLinkGenerator.link( absolute: true, uri: '/wfs', params: [
+              service: 'WFS', version: wfsParams.version, request: 'DescribeFeatureType', typeName: wfsParams.typeName
+          ] ),
+          "http://www.opengis.net/wfs",
+          grailsLinkGenerator.link( absolute: true, uri: '/schemas/wfs/1.1.0/wfs.xsd' )
+      ]
+
+
+
+
+      def features = layer.getFeatures( options )
+
+      def x = {
+        mkp.xmlDeclaration()
+        mkp.declareNamespace( ogcNamespacesByPrefix )
+        mkp.declareNamespace( "${namespaceInfo.prefix}": namespaceInfo.uri )
+
+        wfs.FeatureCollection(
+            numberOfFeatures: count,
+            timeStamp: new Date().format( "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", TimeZone.getTimeZone( 'GMT' ) ),
+            'xsi:schemaLocation': schemaLocations.join( ' ' ),
+            numberMatched: matched,
+            startIndex: wfsParams.startIndex ?: '0'
+        ) {
+          if ( !( wfsParams?.resultType?.toLowerCase() == 'hits' ) )
+          {
+            gml.featureMembers {
+              features?.each { feature ->
+                mkp.yieldUnescaped( writer.write( feature, 3, false, false, false, namespaceInfo.prefix ) )
+              }
+            }
+          }
+        }
+      }
+
+      xml = new StreamingMarkupBuilder( encoding: 'utf-8' ).bind( x )
+    }
+
+    [contentType: 'text/xml', buffer: xml]
+  }
 }

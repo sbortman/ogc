@@ -15,14 +15,16 @@
 <asset:javascript src="WFSClient.js"/>
 <asset:script>
     $(document).ready(function(){
-//        var wfsServer = "${createLink( absolute: true, controller: 'wfs' )}";
-        var wfsServer = "http://localhost/geoserver/wfs";
-        var wfsProxy = "${createLink( action: 'proxyWFS', params: [url: ''] )}";
+        var params = {
+          wfsServer: "${createLink( absolute: true, controller: 'wfs' )}",
+//            wfsServer: "http://localhost/geoserver/wfs",
+            wfsProxy: "${createLink( action: 'proxyWFS', params: [url: ''] )}"
+        };
 
-        WFSClient.init({
-            wfsServer: wfsServer,
-            wfsProxy: wfsProxy
-        });
+        WFSClient.init(params);
+/*
+        TestWFS.init(params);
+*/
     } );
 </asset:script>
 <asset:deferredScripts/>
