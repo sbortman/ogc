@@ -140,6 +140,7 @@ OGC.WFS.Client = OpenLayers.Class( {
 
                     // use the tool to parse the data
                     var response = (formatter.read( doc ));
+                    console.log('######## response ########', response);
 
                     //console.log( 'formatter', formatter );
                     //console.log( 'namespaces', formatter.namespaces );
@@ -245,8 +246,11 @@ OGC.WFS.Client = OpenLayers.Class( {
     getFeature: function ( featureTypeName, namespace, filter, callback )
     {
         var parts = featureTypeName.split( ":" );
+        console.log('parts', parts);
         var typeName = parts.pop();
+        console.log('typeName', typeName)
         var prefix;
+        console.log('parts.length', parts.length)
 
         if ( parts.length > 0 )
         {
@@ -263,9 +267,11 @@ OGC.WFS.Client = OpenLayers.Class( {
             request: 'GetFeature',
             typeName: prefix + ':' + typeName,
             namespace: 'xmlns(' + prefix + '=' + namespace + ')',
-            outputFormat: 'GML3',
+            outputFormat: 'GML2',
             filter: filter || ''
         };
+
+        console.log('getFeature params', params)
 
         var isAsync = (callback instanceof Function);
         var format = new OpenLayers.Format.GML.v3();
@@ -275,7 +281,7 @@ OGC.WFS.Client = OpenLayers.Class( {
             params: params,
             success: function ( request )
             {
-                //console.log(request);
+                console.log('request', request);
 
                 var doc = request.responseXML;
 
@@ -287,7 +293,7 @@ OGC.WFS.Client = OpenLayers.Class( {
                 // use the tool to parse the data
                 var response = (format.read( doc ));
 
-                //console.log( response );
+                console.log('response', response );
 
                 if ( isAsync )
                 {

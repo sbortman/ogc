@@ -309,7 +309,6 @@ var WFSClient = (function ()
     {
         if ( params.wfsProxy )
         {
-            console.log(params.wfsProxy);
             OpenLayers.ProxyHost = params.wfsProxy;
         }
 

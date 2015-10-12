@@ -131,7 +131,7 @@ OGC.WFS.Client = OpenLayers.Class( {
                 params: params,
                 success: function ( request )
                 {
-
+                    //console.log('request########', request)
                     var doc = request.responseXML;
                     if ( !doc || !doc.documentElement )
                     {
@@ -215,6 +215,8 @@ OGC.WFS.Client = OpenLayers.Class( {
         var isAsync = (callback instanceof Function);
         var results;
 
+        console.log('DescribeFeatureType Params ######', params);
+
         OpenLayers.Request.GET( {
             url: this.wfsServer,
             params: params,
@@ -257,14 +259,17 @@ OGC.WFS.Client = OpenLayers.Class( {
             prefix = 'ns1';
         }
 
+        // TODO: Wrap this in an if, and check for filter
+
         var params = {
             service: 'WFS',
             version: '1.1.0',
             request: 'GetFeature',
+            maxFeatures: '5',
             typeName: prefix + ':' + typeName,
             namespace: 'xmlns(' + prefix + '=' + namespace + ')',
             outputFormat: 'GML3',
-            filter: filter || ''
+            //filter: filter || ''
         };
 
         var isAsync = (callback instanceof Function);
@@ -305,6 +310,31 @@ OGC.WFS.Client = OpenLayers.Class( {
 
 var WFSClient = (function ()
 {
+    function getName( node, obj )
+    {
+        var name = this.getChildValue( node );
+        if ( name )
+        {
+            // console.log('here');
+            var parts = name.split( ":" );
+            obj.name = name; // parts.pop();
+            if ( parts.length > 0 )
+            {
+                obj.featureNS = this.lookupNamespaceURI( node, parts[0] );
+            }
+        }
+    }
+
+    var wfsVersions = ['v1', 'v1_0_0', 'v1_1_0', 'v2_0_0'];
+
+    for ( var i = 0; i < wfsVersions.length; i++ )
+    {
+        OpenLayers.Util.extend( OpenLayers.Format.WFSCapabilities[wfsVersions[i]].prototype.readers.wfs, {
+            Name: getName
+        } );
+    }
+
+
     function init( params )
     {
         if ( params.wfsProxy )
@@ -365,189 +395,189 @@ var WFSClient = (function ()
 })();
 
 
-var TestWFS = (function ()
-{
-    var wfsServer;
+// var TestWFS = (function ()
+// {
+//     var wfsServer;
 
-    function getName( node, obj )
-    {
-        var name = this.getChildValue( node );
-        if ( name )
-        {
-            // console.log('here');
-            var parts = name.split( ":" );
-            obj.name = name; // parts.pop();
-            if ( parts.length > 0 )
-            {
-                obj.featureNS = this.lookupNamespaceURI( node, parts[0] );
-            }
-        }
-    }
+//     // function getName( node, obj )
+//     // {
+//     //     var name = this.getChildValue( node );
+//     //     if ( name )
+//     //     {
+//     //         // console.log('here');
+//     //         var parts = name.split( ":" );
+//     //         obj.name = name; // parts.pop();
+//     //         if ( parts.length > 0 )
+//     //         {
+//     //             obj.featureNS = this.lookupNamespaceURI( node, parts[0] );
+//     //         }
+//     //     }
+//     // }
 
-    var wfsVersions = ['v1', 'v1_0_0', 'v1_1_0', 'v2_0_0'];
+//     // var wfsVersions = ['v1', 'v1_0_0', 'v1_1_0', 'v2_0_0'];
 
-    for ( var i = 0; i < wfsVersions.length; i++ )
-    {
-        OpenLayers.Util.extend( OpenLayers.Format.WFSCapabilities[wfsVersions[i]].prototype.readers.wfs, {
-            Name: getName
-        } );
-    }
+//     // for ( var i = 0; i < wfsVersions.length; i++ )
+//     // {
+//     //     OpenLayers.Util.extend( OpenLayers.Format.WFSCapabilities[wfsVersions[i]].prototype.readers.wfs, {
+//     //         Name: getName
+//     //     } );
+//     // }
 
-    function getCapabilities( callback )
-    {
-        var capabilities = new OpenLayers.Format.WFSCapabilities();
+//     function getCapabilities( callback )
+//     {
+//         var capabilities = new OpenLayers.Format.WFSCapabilities();
 
-        OpenLayers.Request.GET( {
-            url: wfsServer,
-            params: {
-                SERVICE: "WFS",
-                VERSION: "1.1.0",
-                REQUEST: "GetCapabilities"
-            },
-            success: function ( request )
-            {
-                var doc = request.responseText;
-                if ( !doc || !doc.documentElement )
-                {
-                    doc = request.responseXML;
-                }
+//         OpenLayers.Request.GET( {
+//             url: wfsServer,
+//             params: {
+//                 SERVICE: "WFS",
+//                 VERSION: "1.1.0",
+//                 REQUEST: "GetCapabilities"
+//             },
+//             success: function ( request )
+//             {
+//                 var doc = request.responseText;
+//                 if ( !doc || !doc.documentElement )
+//                 {
+//                     doc = request.responseXML;
+//                 }
 
-                //console.log(doc);
+//                 //console.log(doc);
 
-                var response = capabilities.read( doc );
+//                 var response = capabilities.read( doc );
 
-                if ( callback )
-                {
-                    callback( response );
-                }
-                // console.log('parser', capabilities.parser.CLASS_NAME);
-            },
-            failure: function ()
-            {
-                alert( "Trouble getting capabilities doc" );
-                OpenLayers.Console.error.apply( OpenLayers.Console, arguments );
-            }
-        } );
-    }
+//                 if ( callback )
+//                 {
+//                     callback( response );
+//                 }
+//                 // console.log('parser', capabilities.parser.CLASS_NAME);
+//             },
+//             failure: function ()
+//             {
+//                 alert( "Trouble getting capabilities doc" );
+//                 OpenLayers.Console.error.apply( OpenLayers.Console, arguments );
+//             }
+//         } );
+//     }
 
-    function describeFeatureType( typeName, callback )
-    {
-        var schema = new OpenLayers.Format.WFSDescribeFeatureType();
+//     function describeFeatureType( typeName, callback )
+//     {
+//         var schema = new OpenLayers.Format.WFSDescribeFeatureType();
 
-        OpenLayers.Request.GET( {
-            url: wfsServer,
-            params: {
-                SERVICE: "WFS",
-                VERSION: "1.1.0",
-                REQUEST: "DescribeFeatureType",
-                typeName: typeName
-            },
-            success: function ( request )
-            {
-                var doc = request.responseText;
-                if ( !doc || !doc.documentElement )
-                {
-                    doc = request.responseXML;
-                }
+//         OpenLayers.Request.GET( {
+//             url: wfsServer,
+//             params: {
+//                 SERVICE: "WFS",
+//                 VERSION: "1.1.0",
+//                 REQUEST: "DescribeFeatureType",
+//                 typeName: typeName
+//             },
+//             success: function ( request )
+//             {
+//                 var doc = request.responseText;
+//                 if ( !doc || !doc.documentElement )
+//                 {
+//                     doc = request.responseXML;
+//                 }
 
-                //console.log(doc);
-                var response = schema.read( doc );
+//                 //console.log(doc);
+//                 var response = schema.read( doc );
 
-                if ( callback )
-                {
-                    callback( response );
-                }
-            },
-            failure: function ()
-            {
-                alert( "Trouble getting capabilities doc" );
-                OpenLayers.Console.error.apply( OpenLayers.Console, arguments );
-            }
-        } );
-    }
+//                 if ( callback )
+//                 {
+//                     callback( response );
+//                 }
+//             },
+//             failure: function ()
+//             {
+//                 alert( "Trouble getting capabilities doc" );
+//                 OpenLayers.Console.error.apply( OpenLayers.Console, arguments );
+//             }
+//         } );
+//     }
 
-    function convertCqlToXml( filterCql )
-    {
-        var cql = new OpenLayers.Format.CQL();
-        var xml = new OpenLayers.Format.XML();
-        var filterXml = xml.write( new OpenLayers.Format.Filter( {version: "1.1.0"} ).write( cql.read( filterCql ) ) );
+//     function convertCqlToXml( filterCql )
+//     {
+//         var cql = new OpenLayers.Format.CQL();
+//         var xml = new OpenLayers.Format.XML();
+//         var filterXml = xml.write( new OpenLayers.Format.Filter( {version: "1.1.0"} ).write( cql.read( filterCql ) ) );
 
-        return filterXml;
-    }
+//         return filterXml;
+//     }
 
-    function getFeature( typeName, filter, callback )
-    {
-        var gml = new OpenLayers.Format.GML.v3();
+//     function getFeature( typeName, filter, callback )
+//     {
+//         var gml = new OpenLayers.Format.GML.v3();
 
-        // console.log( 'filter', filter );
+//         // console.log( 'filter', filter );
 
-        OpenLayers.Request.GET( {
-            url: wfsServer,
-            params: {
-                SERVICE: "WFS",
-                VERSION: "1.1.0",
-                REQUEST: "GetFeature",
-                typeName: typeName,
-                filter: filter,
-                outputFormat: 'gml3'
-            },
-            success: function ( request )
-            {
-                var doc = request.responseText;
-                if ( !doc || !doc.documentElement )
-                {
-                    doc = request.responseXML;
-                }
+//         OpenLayers.Request.GET( {
+//             url: wfsServer,
+//             params: {
+//                 SERVICE: "WFS",
+//                 VERSION: "1.1.0",
+//                 REQUEST: "GetFeature",
+//                 typeName: typeName,
+//                 filter: filter,
+//                 outputFormat: 'gml3'
+//             },
+//             success: function ( request )
+//             {
+//                 var doc = request.responseText;
+//                 if ( !doc || !doc.documentElement )
+//                 {
+//                     doc = request.responseXML;
+//                 }
 
-                //console.log(doc);
-                var response = gml.read( doc );
+//                 //console.log(doc);
+//                 var response = gml.read( doc );
 
-                if ( callback )
-                {
-                    callback( response );
-                }
-            },
-            failure: function ()
-            {
-                alert( "Trouble getting capabilities doc" );
-                OpenLayers.Console.error.apply( OpenLayers.Console, arguments );
-            }
-        } );
-    }
+//                 if ( callback )
+//                 {
+//                     callback( response );
+//                 }
+//             },
+//             failure: function ()
+//             {
+//                 alert( "Trouble getting capabilities doc" );
+//                 OpenLayers.Console.error.apply( OpenLayers.Console, arguments );
+//             }
+//         } );
+//     }
 
-    function init( params )
-    {
-        wfsServer = params.wfsServer;
-        OpenLayers.ProxyHost = params.wfsProxy;
+//     function init( params )
+//     {
+//         wfsServer = params.wfsServer;
+//         OpenLayers.ProxyHost = params.wfsProxy;
 
-        getCapabilities( function ( response )
-        {
-            console.log( 'getCapabilities', response );
+//         getCapabilities( function ( response )
+//         {
+//             console.log( 'getCapabilities', response );
 
-            var featureTypes = response.featureTypeList.featureTypes;
+//             var featureTypes = response.featureTypeList.featureTypes;
 
-            $.each( featureTypes, function ( i, featureType )
-            {
-                describeFeatureType( featureType.name, function ( it )
-                {
-                    var prefix = it.targetPrefix;
-                    var typeName = it.featureTypes[0].typeName;
+//             $.each( featureTypes, function ( i, featureType )
+//             {
+//                 describeFeatureType( featureType.name, function ( it )
+//                 {
+//                     var prefix = it.targetPrefix;
+//                     var typeName = it.featureTypes[0].typeName;
 
-                    console.log( 'describeFeatureType for ' + prefix + ':' + typeName, it );
-                } );
-            } );
-        } );
+//                     console.log( 'describeFeatureType for ' + prefix + ':' + typeName, it );
+//                 } );
+//             } );
+//         } );
 
-        var typeName = 'topp:states';
-        var cqlFilter = "STATE_ABBR='IN'";
+//         var typeName = 'topp:states';
+//         var cqlFilter = "STATE_ABBR='IN'";
 
-        getFeature( typeName, convertCqlToXml( cqlFilter ), function ( it )
-        {
-            console.log( 'getFeature for ' + typeName + ' where ' + cqlFilter, it );
-        } );
-    }
+//         getFeature( typeName, convertCqlToXml( cqlFilter ), function ( it )
+//         {
+//             console.log( 'getFeature for ' + typeName + ' where ' + cqlFilter, it );
+//         } );
+//     }
 
-    return {
-        init: init
-    };
-})();
+//     return {
+//         //init: init
+//     };
+// })();
