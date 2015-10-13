@@ -5,24 +5,20 @@
 //= require OpenLayersLite-formats.js
 //= require_self
 
+'use strict';
 var OGC = OGC || {WFS: {}};
 
-OGC.WFS.Client = OpenLayers.Class( {
-    initialize: function ( wfsServer )
-    {
+OGC.WFS.Client = OpenLayers.Class({
+    initialize: function ( wfsServer ){
         this.wfsServer = wfsServer;
-        this.wfsFeatureTypes = this.getFeatureTypes();
+        //this.wfsFeatureTypes = this.getFeatureTypes();
         this.wfsFeatureTypeSchemas = null; // = this.getFeatureTypeSchema();
-
-        //console.log(this.wfsServer);
     },
-    getFeatureTypes: function ( cb )
-    {
+    getFeatureTypes: function (cb){
         var localFeatureTypes = [];
         var isAsync = (cb instanceof Function);
 
-        if ( this.wfsFeatureTypes === undefined )
-        {
+        if ( this.wfsFeatureTypes === undefined ){
             OpenLayers.Format.WFSCapabilities.v1.prototype.readers = {
                 "wfs": {
                     "WFS_Capabilities": function ( node, obj )
@@ -188,8 +184,7 @@ OGC.WFS.Client = OpenLayers.Class( {
 
         return this.featureTypes;
     },
-    getFeatureTypeSchema: function ( featureTypeName, namespace, callback )
-    {
+    getFeatureTypeSchema: function ( featureTypeName, namespace, callback ){
         var formatter2 = new OpenLayers.Format.WFSDescribeFeatureType();
         var parts = featureTypeName.split( ":" );
         var typeName = parts.pop();
@@ -244,63 +239,73 @@ OGC.WFS.Client = OpenLayers.Class( {
 
         return results;
     },
-    getFeature: function ( featureTypeName, namespace, filter, callback )
-    {
+    getFeature: function (featureTypeName, namespace, outputFormat, filter, callback){
+        
         var parts = featureTypeName.split( ":" );
         var typeName = parts.pop();
-        var prefix;
+        var prefix,
+            isAsync,
+            format;
 
-        if ( parts.length > 0 )
-        {
+        if(parts.length > 0){
             prefix = parts.pop();
         }
-        else
-        {
+        else{
             prefix = 'ns1';
         }
 
-        // TODO: Wrap this in an if, and check for filter
+        isAsync = (callback instanceof Function);
 
+        // WFS getFeature request parameters
         var params = {
-            service: 'WFS',
-            version: '1.1.0',
-            request: 'GetFeature',
-            maxFeatures: '5',
+            service: 'WFS', // static
+            version: '1.1.0', // static
+            request: 'GetFeature', // static
+            maxFeatures: '50', // variable?
             typeName: prefix + ':' + typeName,
             namespace: 'xmlns(' + prefix + '=' + namespace + ')',
-            outputFormat: 'GML3',
-            //filter: filter || ''
+            outputFormat: '', // variable
+            filter: filter || undefined // variable
         };
 
-        var isAsync = (callback instanceof Function);
-        var format = new OpenLayers.Format.GML.v3();
+        params.outputFormat = outputFormat;
+        console.log('params', params);
 
-        OpenLayers.Request.GET( {
+        switch(params.outputFormat){
+            case 'GML3':
+                console.log('Requesting GML3');
+                format = new OpenLayers.Format.GML.v3();
+                break;
+            case 'JSON':
+                console.log('Requesting JSON');
+                format = new OpenLayers.Format.JSON();
+            default:
+                console.log('Default');
+                break;
+        }
+
+        OpenLayers.Request.GET({
             url: this.wfsServer,
             params: params,
-            success: function ( request )
-            {
-                //console.log(request);
+            success: function (request){
+                var response = request;
 
                 var doc = request.responseXML;
 
-                if ( !doc || !doc.documentElement )
-                {
+                if (!doc || !doc.documentElement ){
                     doc = request.responseText;
                 }
 
-                // use the tool to parse the data
-                var response = (format.read( doc ));
+                // use the formatter to parse the data
+                var response = (format.read(doc));
 
-                //console.log( response );
+                console.log(response);
 
-                if ( isAsync )
-                {
-                    callback( response );
+                if (isAsync){
+                    callback(response);
                 }
             },
-            error: function ( error )
-            {
+            error: function ( error ){
                 console.log( error );
             }
         } );

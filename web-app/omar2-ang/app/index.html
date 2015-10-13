@@ -114,8 +114,10 @@
 						</thead>
 						<tbody>
 							<tr ng-repeat="feature in features">
-								<!-- <td ng-repeat="column in columns">{{feature.attributes[column.name]}}</td> -->
-								<td ng-repeat="column in columns">{{feature.properties[column.name]}}</td>
+								<!-- Below uses wfsclient.js -->
+								<td ng-repeat="column in columns">{{feature.attributes[column.name]}}</td>
+								<!-- Below uses angular $http -->
+								<!-- <td ng-repeat="column in columns">{{feature.properties[column.name]}}</td> -->
 							</tr>
 						</tbody>
 					</table>					

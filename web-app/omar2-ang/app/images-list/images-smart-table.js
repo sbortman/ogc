@@ -99,14 +99,14 @@ omarApp.controller('wfsCtrl', ['$scope', '$http', '$filter', '$log', function ($
 	// GetFeature
 	$scope.getFeature = function () {
 
-		$http.get($scope.endPoint + $scope.getFeatureUrl + $scope.selectedCapability.name)
-			.then(
-				function(data){
-					$scope.features = data.data.features;
-					$log.debug('getFeature', $scope.features);
-			}).catch(function(err){
-				$log.debug(err.stack);
-			});
+		// $http.get($scope.endPoint + $scope.getFeatureUrl + $scope.selectedCapability.name)
+		// 	.then(
+		// 		function(data){
+		// 			$scope.features = data.data.features;
+		// 			$log.debug('getFeature', $scope.features);
+		// 	}).catch(function(err){
+		// 		$log.debug(err.stack);
+		// 	});
 
 		
 		//Refactored (MA-78) 10.07.2015: Now using WFSClient to fetch the data instead of $http
@@ -119,15 +119,15 @@ omarApp.controller('wfsCtrl', ['$scope', '$http', '$filter', '$log', function ($
     //     $scope.itemsByPage = 5;
     //     $scope.displayedCollection = [].concat($scope.rowCollection);  // displayed collection
 		
-		// wfsClient.getFeature($scope.selectedCapability.name, $scope.selectedCapability.featureNS, undefined, function(it) {
-  //           	$scope.features = it;
+		wfsClient.getFeature($scope.selectedCapability.name, $scope.selectedCapability.featureNS, 'GML3', undefined, function(it) {
+            	$scope.features = it;
 
-  //           	$scope.rowCollection = it;
-  //           	//$scope.displayedCollection = [].concat($scope.rowCollection);
-  //           	//console.log($scope.rowCollection);
+            	$scope.rowCollection = it;
+            	//$scope.displayedCollection = [].concat($scope.rowCollection);
+            	//console.log($scope.rowCollection);
 
-  //           	$log.warn('$scope.features', $scope.features);
-  //       	});
+            	$log.warn('$scope.features', $scope.features);
+        	});
 
 	}
 
